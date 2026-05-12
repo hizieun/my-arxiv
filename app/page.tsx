@@ -30,17 +30,14 @@ export default function FeedPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (categories.length === 0) {
-      setPapers([]);
-      return;
-    }
     setStatus("loading");
-    const params = new URLSearchParams({ categories: categories.join(",") });
+    const params = new URLSearchParams();
+    if (categories.length > 0) params.set("categories", categories.join(","));
     fetch(`/api/feed?${params}`)
       .then((r) => r.json())
-      .then((data: { papers: Paper[]; error?: string }) => {
+      .then((data: { papers: Paper[]; errors?: string[] }) => {
         setPapers(data.papers ?? []);
-        setStatus(data.error ? "error" : "idle");
+        setStatus(data.errors?.length ? "error" : "idle");
       })
       .catch(() => setStatus("error"));
   }, [categories, hydrated]);
@@ -53,9 +50,11 @@ export default function FeedPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">신규 논문 피드</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            {hydrated && categories.length > 0
-              ? `${categories.join(", ")} · ${labelForWindow(windowKey)}`
-              : "관심 카테고리를 먼저 선택하세요"}
+            {hydrated
+              ? categories.length > 0
+                ? `${categories.join(", ")} + HF 데일리 · ${labelForWindow(windowKey)}`
+                : `HF 데일리 큐레이션 · ${labelForWindow(windowKey)} (카테고리를 추가하면 arXiv도 함께)`
+              : " "}
           </p>
         </div>
         <div className="inline-flex rounded-md border border-[var(--border)] p-1 text-xs">
@@ -77,14 +76,6 @@ export default function FeedPage() {
         </div>
       </header>
 
-      {hydrated && categories.length === 0 && (
-        <EmptyState
-          title="관심 카테고리가 없습니다"
-          body="카테고리를 한 개 이상 선택해 주세요."
-          cta={{ href: "/categories", label: "카테고리 설정으로" }}
-        />
-      )}
-
       {status === "loading" && <SkeletonList />}
 
       {status === "error" && (
@@ -93,10 +84,11 @@ export default function FeedPage() {
         </p>
       )}
 
-      {status === "idle" && filtered.length === 0 && categories.length > 0 && (
+      {status === "idle" && filtered.length === 0 && (
         <EmptyState
           title={`${labelForWindow(windowKey)} 신규 논문이 없습니다`}
           body="더 넓은 기간으로 바꾸거나, 카테고리를 추가해 보세요."
+          cta={categories.length === 0 ? { href: "/categories", label: "카테고리 설정으로" } : undefined}
         />
       )}
 

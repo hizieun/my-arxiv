@@ -1,29 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchArxivPapers } from "@/lib/arxiv";
-import { fetchHFDailyPapers } from "@/lib/huggingface";
+import { searchHFPapers } from "@/lib/huggingface";
 import { dedupAndSort } from "@/lib/aggregator";
+import type { PaperSource } from "@/lib/types";
 
-export const revalidate = 1800;
+export const revalidate = 600;
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const categories = url.searchParams.get("categories")?.split(",").filter(Boolean) ?? [];
-  const includeHF = url.searchParams.get("hf") !== "0";
+  const query = url.searchParams.get("q")?.trim() ?? "";
+  const sourcesParam = url.searchParams.get("sources");
+  const sources: Set<PaperSource> = new Set(
+    (sourcesParam?.split(",").filter(Boolean) as PaperSource[]) ?? ["arxiv", "huggingface"],
+  );
 
-  if (categories.length === 0 && !includeHF) {
-    return NextResponse.json({ papers: [] });
-  }
+  if (!query) return NextResponse.json({ papers: [], counts: {} });
 
   const [arxivResult, hfResult] = await Promise.allSettled([
-    categories.length > 0
-      ? fetchArxivPapers({
-          categories,
-          maxResults: 40,
-          sortBy: "submittedDate",
-          sortOrder: "descending",
-        })
+    sources.has("arxiv")
+      ? fetchArxivPapers({ query, maxResults: 25, sortBy: "relevance" })
       : Promise.resolve([]),
-    includeHF ? fetchHFDailyPapers(30) : Promise.resolve([]),
+    sources.has("huggingface") ? searchHFPapers(query, 25) : Promise.resolve([]),
   ]);
 
   const arxiv = arxivResult.status === "fulfilled" ? arxivResult.value : [];
