@@ -13,6 +13,12 @@ export const AI_CATEGORIES: ArxivCategory[] = [
   { code: "cs.CR", name: "Cryptography and Security", group: "Applications" },
   { code: "stat.ML", name: "Statistics — Machine Learning", group: "Statistics" },
   { code: "stat.AP", name: "Statistics — Applications", group: "Statistics" },
+  { code: "q-bio.NC", name: "Neurons and Cognition (뇌과학)", group: "Bio + Neuroscience" },
+  { code: "q-bio.QM", name: "Quantitative Methods (ML 응용)", group: "Bio + Neuroscience" },
+  { code: "q-bio.BM", name: "Biomolecules", group: "Bio + Neuroscience" },
+  { code: "q-bio.GN", name: "Genomics", group: "Bio + Neuroscience" },
+  { code: "q-bio.MN", name: "Molecular Networks", group: "Bio + Neuroscience" },
+  { code: "q-bio.CB", name: "Cell Behavior", group: "Bio + Neuroscience" },
 ];
 
 export const DEFAULT_SELECTED_CATEGORIES = ["cs.AI", "cs.LG", "cs.CL"];
