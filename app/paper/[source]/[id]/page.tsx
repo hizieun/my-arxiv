@@ -97,10 +97,27 @@ export default function PaperDetailPage({ params }: PageProps) {
       </Link>
 
       <header>
-        <div className="mb-3 flex items-center gap-2 text-xs text-[var(--muted)]">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
           <span className="rounded bg-[var(--accent-soft)] px-1.5 py-0.5 font-semibold text-[var(--accent)]">
             {SOURCE_LABEL[paper.source]}
           </span>
+          {paper.hfDaily && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+              📅 HF Daily
+            </span>
+          )}
+          {typeof paper.popularity === "number" && paper.popularity > 0 && (
+            <span
+              className={[
+                "rounded px-1.5 py-0.5 font-semibold",
+                paper.popularity >= 10
+                  ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                  : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+              ].join(" ")}
+            >
+              🔥 {paper.popularity}
+            </span>
+          )}
           {paper.categories.slice(0, 6).map((c) => (
             <span key={c} className="font-mono">{c}</span>
           ))}

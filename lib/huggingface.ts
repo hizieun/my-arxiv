@@ -27,7 +27,7 @@ interface HFSearchEntry {
   paper: HFPaperInner;
 }
 
-function toPaper(p: HFPaperInner): Paper {
+function toPaper(p: HFPaperInner, fromDaily = false): Paper {
   return {
     id: `hf:${p.id}`,
     source: "huggingface",
@@ -38,6 +38,8 @@ function toPaper(p: HFPaperInner): Paper {
     categories: p.ai_keywords?.slice(0, 4) ?? [],
     htmlUrl: `https://huggingface.co/papers/${p.id}`,
     pdfUrl: `https://arxiv.org/pdf/${p.id}.pdf`,
+    popularity: typeof p.upvotes === "number" ? p.upvotes : undefined,
+    hfDaily: fromDaily || undefined,
   };
 }
 
@@ -53,7 +55,7 @@ export async function fetchHFDailyPapers(limit = 30): Promise<Paper[]> {
   });
   if (!res.ok) throw new Error(`HF daily_papers ${res.status}`);
   const data = (await res.json()) as HFDailyEntry[];
-  return data.map((d) => toPaper(d.paper));
+  return data.map((d) => toPaper(d.paper, true));
 }
 
 export async function fetchHFPaperById(id: string): Promise<Paper | null> {

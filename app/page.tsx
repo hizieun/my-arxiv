@@ -8,12 +8,14 @@ import { getCategories, STORAGE_EVENT } from "@/lib/storage";
 import type { Paper } from "@/lib/types";
 
 type Window = "week" | "month" | "all";
+type SortKey = "recent" | "popular";
 
 export default function FeedPage() {
   const [categories, setCats] = useState<string[]>([]);
   const [papers, setPapers] = useState<Paper[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [windowKey, setWindowKey] = useState<Window>("week");
+  const [sort, setSort] = useState<SortKey>("recent");
   const [hydrated, setHydrated] = useState(false);
 
   const loadCats = useCallback(() => {
@@ -42,7 +44,16 @@ export default function FeedPage() {
       .catch(() => setStatus("error"));
   }, [categories, hydrated]);
 
-  const filtered = papers.filter((p) => withinWindow(p.publishedAt, windowKey));
+  const filtered = papers
+    .filter((p) => withinWindow(p.publishedAt, windowKey))
+    .sort((a, b) => {
+      if (sort === "popular") {
+        const pa = a.popularity ?? -1;
+        const pb = b.popularity ?? -1;
+        if (pb !== pa) return pb - pa;
+      }
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    });
 
   return (
     <div>
@@ -57,22 +68,41 @@ export default function FeedPage() {
               : " "}
           </p>
         </div>
-        <div className="inline-flex rounded-md border border-[var(--border)] p-1 text-xs">
-          {(["week", "month", "all"] as const).map((w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() => setWindowKey(w)}
-              className={[
-                "rounded px-2.5 py-1 font-medium transition-colors",
-                windowKey === w
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]",
-              ].join(" ")}
-            >
-              {labelForWindow(w)}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          <div className="inline-flex rounded-md border border-[var(--border)] p-1 text-xs">
+            {(["recent", "popular"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSort(s)}
+                className={[
+                  "rounded px-2.5 py-1 font-medium transition-colors",
+                  sort === s
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                ].join(" ")}
+              >
+                {s === "recent" ? "최신순" : "🔥 인기순"}
+              </button>
+            ))}
+          </div>
+          <div className="inline-flex rounded-md border border-[var(--border)] p-1 text-xs">
+            {(["week", "month", "all"] as const).map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setWindowKey(w)}
+                className={[
+                  "rounded px-2.5 py-1 font-medium transition-colors",
+                  windowKey === w
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                ].join(" ")}
+              >
+                {labelForWindow(w)}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 

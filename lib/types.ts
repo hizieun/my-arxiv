@@ -11,6 +11,8 @@ export interface Paper {
   categories: string[];
   pdfUrl?: string;
   htmlUrl: string;
+  popularity?: number;
+  hfDaily?: boolean;
 }
 
 export interface ArxivCategory {

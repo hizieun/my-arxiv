@@ -17,11 +17,10 @@ export function dedupAndSort(...lists: Paper[][]): Paper[] {
         seen.set(key, paper);
         continue;
       }
-      if (SOURCE_PRIORITY[paper.source] < SOURCE_PRIORITY[existing.source]) {
-        seen.set(key, mergeCategories(paper, existing));
-      } else {
-        seen.set(key, mergeCategories(existing, paper));
-      }
+      const primary =
+        SOURCE_PRIORITY[paper.source] < SOURCE_PRIORITY[existing.source] ? paper : existing;
+      const other = primary === paper ? existing : paper;
+      seen.set(key, mergePapers(primary, other));
     }
   }
   return [...seen.values()].sort((a, b) => {
@@ -31,8 +30,19 @@ export function dedupAndSort(...lists: Paper[][]): Paper[] {
   });
 }
 
-function mergeCategories(primary: Paper, other: Paper): Paper {
+function mergePapers(primary: Paper, other: Paper): Paper {
   const cats = new Set(primary.categories);
   for (const c of other.categories) cats.add(c);
-  return { ...primary, categories: [...cats] };
+  return {
+    ...primary,
+    categories: [...cats],
+    popularity: pickMax(primary.popularity, other.popularity),
+    hfDaily: primary.hfDaily || other.hfDaily || undefined,
+  };
+}
+
+function pickMax(a: number | undefined, b: number | undefined): number | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return Math.max(a, b);
 }
