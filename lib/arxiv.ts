@@ -24,6 +24,17 @@ function buildSearchQuery({ categories, query }: FetchOptions): string {
   return parts.join("+AND+") || "cat:cs.AI";
 }
 
+export async function fetchArxivById(arxivId: string): Promise<Paper | null> {
+  const url = `${ARXIV_API}?id_list=${encodeURIComponent(arxivId)}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": "my-arxiv/0.3 (personal paper feed)" },
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) return null;
+  const xml = await res.text();
+  return parseAtom(xml)[0] ?? null;
+}
+
 export async function fetchArxivPapers(opts: FetchOptions): Promise<Paper[]> {
   const search = buildSearchQuery(opts);
   const params = new URLSearchParams({

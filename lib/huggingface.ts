@@ -56,6 +56,18 @@ export async function fetchHFDailyPapers(limit = 30): Promise<Paper[]> {
   return data.map((d) => toPaper(d.paper));
 }
 
+export async function fetchHFPaperById(id: string): Promise<Paper | null> {
+  const url = `${HF_BASE}/papers/${encodeURIComponent(id)}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": "my-arxiv/0.3 (personal paper feed)" },
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as HFPaperInner;
+  if (!data?.id) return null;
+  return toPaper(data);
+}
+
 export async function searchHFPapers(query: string, limit = 25): Promise<Paper[]> {
   if (!query.trim()) return [];
   const url = `${HF_BASE}/papers/search?q=${encodeURIComponent(query)}&limit=${limit}`;

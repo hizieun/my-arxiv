@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Paper } from "@/lib/types";
-import { getNotes, getReadSet, setNote, STORAGE_EVENT, toggleRead } from "@/lib/storage";
+import { getNotes, getReadSet, rememberPaper, setNote, STORAGE_EVENT, toggleRead } from "@/lib/storage";
 
 interface Props {
   paper: Paper;
@@ -19,6 +20,7 @@ export function PaperCard({ paper }: Props) {
   const [showNote, setShowNote] = useState(false);
   const [note, setNoteState] = useState("");
   const [hydrated, setHydrated] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -31,14 +33,32 @@ export function PaperCard({ paper }: Props) {
     return () => window.removeEventListener(STORAGE_EVENT, sync);
   }, [paper.id]);
 
+  const autoGrow = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 480)}px`;
+  }, []);
+
+  useEffect(() => {
+    if (showNote) {
+      autoGrow();
+      textareaRef.current?.focus();
+    }
+  }, [showNote, autoGrow]);
+
   function handleToggleRead() {
+    rememberPaper(paper);
     setRead(toggleRead(paper.id));
   }
 
   function handleSaveNote() {
+    rememberPaper(paper);
     setNote(paper.id, note);
     setShowNote(false);
   }
+
+  const detailHref = `/paper/${paper.source}/${stripPrefix(paper.id)}`;
 
   return (
     <article
@@ -60,12 +80,15 @@ export function PaperCard({ paper }: Props) {
       </header>
 
       <h3 className="text-base font-semibold leading-snug">
-        <a href={paper.htmlUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+        <Link href={detailHref} className="hover:underline">
           {paper.title}
-        </a>
+        </Link>
       </h3>
 
-      <p className="mt-1 text-xs text-[var(--muted)]">{paper.authors.slice(0, 4).join(", ")}{paper.authors.length > 4 ? " 외" : ""}</p>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        {paper.authors.slice(0, 4).join(", ")}
+        {paper.authors.length > 4 ? " 외" : ""}
+      </p>
 
       <p className="mt-3 line-clamp-3 text-sm text-[var(--foreground)]/85">{paper.abstract}</p>
 
@@ -112,27 +135,39 @@ export function PaperCard({ paper }: Props) {
       {showNote && (
         <div className="mt-3 space-y-2">
           <textarea
+            ref={textareaRef}
             value={note}
-            onChange={(e) => setNoteState(e.target.value)}
+            onChange={(e) => {
+              setNoteState(e.target.value);
+              autoGrow();
+            }}
             placeholder="이 논문에 대한 메모 (마크다운 가능)"
-            rows={4}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] p-2 text-sm outline-none focus:border-[var(--accent)]"
+            rows={3}
+            className="w-full resize-none overflow-hidden rounded-md border border-[var(--border)] bg-[var(--background)] p-2 text-sm leading-relaxed outline-none focus:border-[var(--accent)]"
           />
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowNote(false)}
-              className="rounded-md px-3 py-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+          <div className="flex items-center justify-between gap-2">
+            <Link
+              href={detailHref}
+              className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:underline"
             >
-              취소
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveNote}
-              className="rounded-md bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
-            >
-              저장
-            </button>
+              ↗ 전체 화면에서 편집
+            </Link>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowNote(false)}
+                className="rounded-md px-3 py-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNote}
+                className="rounded-md bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
+              >
+                저장
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -145,4 +180,9 @@ function formatDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function stripPrefix(id: string): string {
+  const idx = id.indexOf(":");
+  return idx >= 0 ? id.slice(idx + 1) : id;
 }

@@ -1,9 +1,12 @@
 "use client";
 
+import type { Paper, PaperSource } from "./types";
+
 const KEYS = {
   categories: "my-arxiv:categories",
   read: "my-arxiv:read",
   notes: "my-arxiv:notes",
+  meta: "my-arxiv:meta",
 } as const;
 
 function safeGet<T>(key: string, fallback: T): T {
@@ -61,6 +64,35 @@ export function setNote(paperId: string, body: string): void {
     delete notes[paperId];
   }
   safeSet(KEYS.notes, notes);
+}
+
+export interface PaperMeta {
+  title: string;
+  source: PaperSource;
+  authors: string[];
+  publishedAt: string;
+  htmlUrl: string;
+  detailHref: string;
+}
+
+export type MetaMap = Record<string, PaperMeta>;
+
+export function getMeta(): MetaMap {
+  return safeGet<MetaMap>(KEYS.meta, {});
+}
+
+export function rememberPaper(paper: Paper): void {
+  const meta = getMeta();
+  const stripped = paper.id.split(":")[1] ?? paper.id;
+  meta[paper.id] = {
+    title: paper.title,
+    source: paper.source,
+    authors: paper.authors,
+    publishedAt: paper.publishedAt,
+    htmlUrl: paper.htmlUrl,
+    detailHref: `/paper/${paper.source}/${stripped}`,
+  };
+  safeSet(KEYS.meta, meta);
 }
 
 export const STORAGE_EVENT = "my-arxiv:storage";
