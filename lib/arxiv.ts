@@ -1,0 +1,90 @@
+import type { Paper } from "./types";
+
+const ARXIV_API = "https://export.arxiv.org/api/query";
+
+interface FetchOptions {
+  categories?: string[];
+  query?: string;
+  start?: number;
+  maxResults?: number;
+  sortBy?: "submittedDate" | "lastUpdatedDate" | "relevance";
+  sortOrder?: "ascending" | "descending";
+}
+
+function buildSearchQuery({ categories, query }: FetchOptions): string {
+  const parts: string[] = [];
+  if (categories?.length) {
+    const cats = categories.map((c) => `cat:${c}`).join("+OR+");
+    parts.push(`(${cats})`);
+  }
+  if (query) {
+    const escaped = encodeURIComponent(query).replace(/%20/g, "+");
+    parts.push(`(ti:${escaped}+OR+abs:${escaped})`);
+  }
+  return parts.join("+AND+") || "cat:cs.AI";
+}
+
+export async function fetchArxivPapers(opts: FetchOptions): Promise<Paper[]> {
+  const search = buildSearchQuery(opts);
+  const params = new URLSearchParams({
+    search_query: search,
+    start: String(opts.start ?? 0),
+    max_results: String(opts.maxResults ?? 30),
+    sortBy: opts.sortBy ?? "submittedDate",
+    sortOrder: opts.sortOrder ?? "descending",
+  });
+  const url = `${ARXIV_API}?${params.toString().replace(/%2B/g, "+")}`;
+
+  const res = await fetch(url, {
+    headers: { "User-Agent": "my-arxiv/0.1 (personal paper feed)" },
+    next: { revalidate: 1800 },
+  });
+  if (!res.ok) throw new Error(`arXiv API ${res.status}`);
+  const xml = await res.text();
+  return parseAtom(xml);
+}
+
+function parseAtom(xml: string): Paper[] {
+  const entries = xml.match(/<entry>[\s\S]*?<\/entry>/g) ?? [];
+  return entries.map((entry) => {
+    const id = pick(entry, "id") ?? "";
+    const title = clean(pick(entry, "title") ?? "");
+    const summary = clean(pick(entry, "summary") ?? "");
+    const published = pick(entry, "published") ?? "";
+    const updated = pick(entry, "updated") ?? "";
+    const authors = [...entry.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g)].map(
+      (m) => clean(m[1]),
+    );
+    const categories = [...entry.matchAll(/<category[^>]*term="([^"]+)"/g)].map((m) => m[1]);
+    const pdfLink = entry.match(/<link[^>]*title="pdf"[^>]*href="([^"]+)"/)?.[1];
+    const arxivId = id.replace(/^https?:\/\/arxiv\.org\/abs\//, "");
+    return {
+      id: `arxiv:${arxivId}`,
+      source: "arxiv" as const,
+      title,
+      authors,
+      abstract: summary,
+      publishedAt: published,
+      updatedAt: updated || undefined,
+      categories,
+      pdfUrl: pdfLink,
+      htmlUrl: id,
+    } satisfies Paper;
+  });
+}
+
+function pick(xml: string, tag: string): string | null {
+  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`));
+  return m ? m[1] : null;
+}
+
+function clean(s: string): string {
+  return s
+    .replace(/\s+/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
