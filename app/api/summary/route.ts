@@ -10,7 +10,12 @@ export async function POST(req: NextRequest) {
     const summary = await summarizeAbstract(body.title as string, body.abstract as string);
     return NextResponse.json({ summary });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "unknown";
+    const raw = err instanceof Error ? err.message : "unknown";
+    const message = raw.includes("429") || raw.includes("quota")
+      ? "API 할당량 초과 — aistudio.google.com에서 무료 티어 키를 확인해주세요."
+      : raw.includes("API_KEY") || raw.includes("401") || raw.includes("403")
+      ? "API 키가 유효하지 않습니다."
+      : "요약 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

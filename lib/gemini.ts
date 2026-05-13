@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 function buildPrompt(title: string, abstract: string): string {
   return `다음 논문의 Abstract를 한국어로 3가지 핵심 포인트로 요약해주세요.
@@ -14,8 +14,10 @@ export async function summarizeAbstract(title: string, abstract: string): Promis
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_API_KEY not configured");
 
-  const genai = new GoogleGenerativeAI(apiKey);
-  const model = genai.getGenerativeModel({ model: "gemini-2.0-flash" });
-  const result = await model.generateContent(buildPrompt(title, abstract));
-  return result.response.text();
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: buildPrompt(title, abstract),
+  });
+  return response.text ?? "";
 }
