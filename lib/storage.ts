@@ -7,6 +7,7 @@ const KEYS = {
   read: "my-arxiv:read",
   notes: "my-arxiv:notes",
   meta: "my-arxiv:meta",
+  summaries: "my-arxiv:summaries",
 } as const;
 
 function safeGet<T>(key: string, fallback: T): T {
@@ -93,6 +94,18 @@ export function rememberPaper(paper: Paper): void {
     detailHref: `/paper/${paper.source}/${stripped}`,
   };
   safeSet(KEYS.meta, meta);
+}
+
+type SummaryMap = Record<string, { text: string; generatedAt: string }>;
+
+export function getSummaries(): SummaryMap {
+  return safeGet<SummaryMap>(KEYS.summaries, {});
+}
+
+export function saveSummary(paperId: string, text: string): void {
+  const summaries = getSummaries();
+  summaries[paperId] = { text, generatedAt: new Date().toISOString() };
+  safeSet(KEYS.summaries, summaries);
 }
 
 export const STORAGE_EVENT = "my-arxiv:storage";

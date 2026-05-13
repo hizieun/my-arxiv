@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import type { Paper, PaperSource } from "@/lib/types";
-import { getNotes, getReadSet, rememberPaper, setNote, STORAGE_EVENT, toggleRead } from "@/lib/storage";
+import { getNotes, getReadSet, getSummaries, rememberPaper, saveSummary, setNote, STORAGE_EVENT, toggleRead } from "@/lib/storage";
 
 const SOURCE_LABEL: Record<PaperSource, string> = {
   arxiv: "arXiv",
@@ -24,6 +24,9 @@ export default function PaperDetailPage({ params }: PageProps) {
   const [read, setRead] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -48,6 +51,10 @@ export default function PaperDetailPage({ params }: PageProps) {
     sync();
     setHydrated(true);
     window.addEventListener(STORAGE_EVENT, sync);
+
+    const cached = getSummaries()[paper.id];
+    if (cached) setSummary(cached.text);
+
     return () => window.removeEventListener(STORAGE_EVENT, sync);
   }, [paper]);
 
@@ -67,6 +74,27 @@ export default function PaperDetailPage({ params }: PageProps) {
     rememberPaper(paper);
     setNote(paper.id, note);
     setSavedAt(new Date().toISOString());
+  }
+
+  async function handleSummarize() {
+    if (!paper || summaryLoading) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const res = await fetch("/api/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: paper.title, abstract: paper.abstract }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "요약 실패");
+      setSummary(data.summary);
+      saveSummary(paper.id, data.summary);
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "알 수 없는 오류");
+    } finally {
+      setSummaryLoading(false);
+    }
   }
 
   function handleToggleRead() {
@@ -130,6 +158,51 @@ export default function PaperDetailPage({ params }: PageProps) {
       <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Abstract</h2>
         <p className="whitespace-pre-line text-[15px] leading-relaxed text-[var(--foreground)]/90">{paper.abstract}</p>
+      </section>
+
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">AI 요약</h2>
+          <span className="rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+            Gemini
+          </span>
+          {!summary && !summaryLoading && (
+            <button
+              type="button"
+              onClick={handleSummarize}
+              className="ml-auto rounded-md border border-[var(--border)] px-3 py-1 text-xs font-medium hover:border-[var(--muted)]"
+            >
+              한국어 요약 보기
+            </button>
+          )}
+          {summary && (
+            <button
+              type="button"
+              onClick={handleSummarize}
+              className="ml-auto text-[10px] text-[var(--muted)] hover:text-[var(--foreground)]"
+              title="다시 생성"
+            >
+              ↺ 재생성
+            </button>
+          )}
+        </div>
+        {summaryLoading && (
+          <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+            요약 생성 중…
+          </div>
+        )}
+        {summaryError && (
+          <p className="text-sm text-red-600 dark:text-red-400">{summaryError}</p>
+        )}
+        {summary && !summaryLoading && (
+          <div className="space-y-2 text-[15px] leading-relaxed text-[var(--foreground)]/90 whitespace-pre-line">
+            {summary}
+          </div>
+        )}
+        {!summary && !summaryLoading && !summaryError && (
+          <p className="text-sm text-[var(--muted)]">버튼을 눌러 한국어 핵심 요약을 생성합니다.</p>
+        )}
       </section>
 
       <div className="flex flex-wrap gap-2 text-xs">
