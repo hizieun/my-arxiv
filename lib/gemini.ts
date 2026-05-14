@@ -16,7 +16,10 @@ export async function summarizeAbstract(title: string, abstract: string): Promis
 
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
+    config: {
+      thinkingConfig: { thinkingBudget: 0 },
+    },
     contents: buildPrompt(title, abstract),
   });
   return response.text ?? "";

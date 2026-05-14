@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
     const summary = await summarizeAbstract(body.title as string, body.abstract as string);
     return NextResponse.json({ summary });
   } catch (err) {
-    const raw = err instanceof Error ? err.message : "unknown";
+    const raw = err instanceof Error ? err.message : String(err);
+    console.error("[summary]", raw);
     const message = raw.includes("429") || raw.includes("quota")
       ? "API 할당량 초과 — aistudio.google.com에서 무료 티어 키를 확인해주세요."
       : raw.includes("API_KEY") || raw.includes("401") || raw.includes("403")
