@@ -1,22 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PaperCard } from "@/components/PaperCard";
+import { dedupAndSort } from "@/lib/aggregator";
 import { DEFAULT_SELECTED_CATEGORIES } from "@/lib/categories";
-import { getCategories, STORAGE_EVENT } from "@/lib/storage";
+import { getCategories, getFeedCache, setFeedCache, STORAGE_EVENT } from "@/lib/storage";
 import type { Paper } from "@/lib/types";
 
 type Window = "week" | "month" | "all";
 type SortKey = "recent" | "popular";
+type SourceState = "loading" | "ready" | "error";
+
+const FEED_CACHE_TTL_MS = 30 * 60 * 1000;
 
 export default function FeedPage() {
   const [categories, setCats] = useState<string[]>([]);
-  const [papers, setPapers] = useState<Paper[]>([]);
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [arxivPapers, setArxivPapers] = useState<Paper[]>([]);
+  const [hfPapers, setHfPapers] = useState<Paper[]>([]);
+  const [arxivState, setArxivState] = useState<SourceState>("loading");
+  const [hfState, setHfState] = useState<SourceState>("loading");
   const [windowKey, setWindowKey] = useState<Window>("week");
   const [sort, setSort] = useState<SortKey>("recent");
   const [hydrated, setHydrated] = useState(false);
+  const [usingCache, setUsingCache] = useState(false);
 
   const loadCats = useCallback(() => {
     setCats(getCategories(DEFAULT_SELECTED_CATEGORIES));
@@ -30,19 +37,75 @@ export default function FeedPage() {
     return () => window.removeEventListener(STORAGE_EVENT, handler);
   }, [loadCats]);
 
+  const cacheKey = useMemo(
+    () => `cats=${[...categories].sort().join(",")}`,
+    [categories],
+  );
+
   useEffect(() => {
     if (!hydrated) return;
-    setStatus("loading");
-    const params = new URLSearchParams();
-    if (categories.length > 0) params.set("categories", categories.join(","));
-    fetch(`/api/feed?${params}`)
+
+    const cached = getFeedCache(cacheKey);
+    const cacheFresh = cached && Date.now() - cached.fetchedAt < FEED_CACHE_TTL_MS;
+    if (cached) {
+      const arxivCached = cached.papers.filter((p) => p.source === "arxiv");
+      const hfCached = cached.papers.filter((p) => p.source !== "arxiv");
+      setArxivPapers(arxivCached);
+      setHfPapers(hfCached);
+      setUsingCache(true);
+      if (cacheFresh) {
+        setArxivState("ready");
+        setHfState("ready");
+      }
+    } else {
+      setUsingCache(false);
+    }
+
+    let cancelled = false;
+
+    setHfState("loading");
+    fetch(`/api/feed?source=hf`)
       .then((r) => r.json())
       .then((data: { papers: Paper[]; errors?: string[] }) => {
-        setPapers(data.papers ?? []);
-        setStatus(data.errors?.length ? "error" : "idle");
+        if (cancelled) return;
+        setHfPapers(data.papers ?? []);
+        setHfState(data.errors?.length ? "error" : "ready");
       })
-      .catch(() => setStatus("error"));
-  }, [categories, hydrated]);
+      .catch(() => {
+        if (!cancelled) setHfState("error");
+      });
+
+    if (categories.length > 0) {
+      setArxivState("loading");
+      const params = new URLSearchParams({ source: "arxiv", categories: categories.join(",") });
+      fetch(`/api/feed?${params}`)
+        .then((r) => r.json())
+        .then((data: { papers: Paper[]; errors?: string[] }) => {
+          if (cancelled) return;
+          setArxivPapers(data.papers ?? []);
+          setArxivState(data.errors?.length ? "error" : "ready");
+        })
+        .catch(() => {
+          if (!cancelled) setArxivState("error");
+        });
+    } else {
+      setArxivPapers([]);
+      setArxivState("ready");
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cacheKey, categories, hydrated]);
+
+  const papers = useMemo(() => dedupAndSort(arxivPapers, hfPapers), [arxivPapers, hfPapers]);
+
+  useEffect(() => {
+    if (arxivState === "ready" && hfState === "ready" && papers.length > 0) {
+      setFeedCache(cacheKey, papers);
+      setUsingCache(false);
+    }
+  }, [arxivState, hfState, papers, cacheKey]);
 
   const filtered = papers
     .filter((p) => withinWindow(p.publishedAt, windowKey))
@@ -54,6 +117,10 @@ export default function FeedPage() {
       }
       return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
     });
+
+  const anyLoading = arxivState === "loading" || hfState === "loading";
+  const bothError = arxivState === "error" && hfState === "error";
+  const initialLoad = anyLoading && papers.length === 0;
 
   return (
     <div>
@@ -106,15 +173,22 @@ export default function FeedPage() {
         </div>
       </header>
 
-      {status === "loading" && <SkeletonList />}
+      <StatusStrip
+        arxivState={arxivState}
+        hfState={hfState}
+        usingCache={usingCache && anyLoading}
+        arxivEnabled={categories.length > 0}
+      />
 
-      {status === "error" && (
+      {initialLoad && <SkeletonList />}
+
+      {bothError && (
         <p className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">
-          arXiv를 가져오는 중 오류가 발생했어요. 잠시 후 새로고침해 주세요.
+          논문을 가져오는 중 오류가 발생했어요. 잠시 후 새로고침해 주세요.
         </p>
       )}
 
-      {status === "idle" && filtered.length === 0 && (
+      {!initialLoad && !bothError && filtered.length === 0 && (
         <EmptyState
           title={`${labelForWindow(windowKey)} 신규 논문이 없습니다`}
           body="더 넓은 기간으로 바꾸거나, 카테고리를 추가해 보세요."
@@ -127,6 +201,35 @@ export default function FeedPage() {
           <PaperCard key={p.id} paper={p} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function StatusStrip({
+  arxivState,
+  hfState,
+  usingCache,
+  arxivEnabled,
+}: {
+  arxivState: SourceState;
+  hfState: SourceState;
+  usingCache: boolean;
+  arxivEnabled: boolean;
+}) {
+  const items: string[] = [];
+  if (usingCache) items.push("💾 캐시에서 즉시 표시 (갱신 중)");
+  if (hfState === "loading") items.push("HF 데일리 로딩 중…");
+  if (arxivEnabled && arxivState === "loading") items.push("arXiv 로딩 중…");
+  if (hfState === "error") items.push("⚠ HF 실패");
+  if (arxivEnabled && arxivState === "error") items.push("⚠ arXiv 실패");
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+      {items.map((t) => (
+        <span key={t} className="rounded-full border border-[var(--border)] px-2 py-0.5">
+          {t}
+        </span>
+      ))}
     </div>
   );
 }

@@ -8,14 +8,16 @@ export const revalidate = 1800;
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const categories = url.searchParams.get("categories")?.split(",").filter(Boolean) ?? [];
-  const includeHF = url.searchParams.get("hf") !== "0";
+  const source = url.searchParams.get("source");
+  const includeArxiv = (source === null || source === "arxiv") && categories.length > 0;
+  const includeHF = source === null || source === "hf";
 
-  if (categories.length === 0 && !includeHF) {
+  if (!includeArxiv && !includeHF) {
     return NextResponse.json({ papers: [] });
   }
 
   const [arxivResult, hfResult] = await Promise.allSettled([
-    categories.length > 0
+    includeArxiv
       ? fetchArxivPapers({
           categories,
           maxResults: 40,
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
   if (arxivResult.status === "rejected") errors.push(`arxiv: ${String(arxivResult.reason)}`);
   if (hfResult.status === "rejected") errors.push(`hf: ${String(hfResult.reason)}`);
 
-  const papers = dedupAndSort(arxiv, hf);
+  const papers = source === null ? dedupAndSort(arxiv, hf) : source === "arxiv" ? arxiv : hf;
 
   return NextResponse.json({
     papers,

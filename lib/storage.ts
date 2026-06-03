@@ -108,4 +108,41 @@ export function saveSummary(paperId: string, text: string): void {
   safeSet(KEYS.summaries, summaries);
 }
 
+interface FeedCacheEntry {
+  papers: Paper[];
+  fetchedAt: number;
+}
+
+const FEED_CACHE_KEY = "my-arxiv:feed-cache";
+
+function safeSessionGet<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeSessionSet<T>(key: string, value: T): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
+
+export function getFeedCache(cacheKey: string): FeedCacheEntry | null {
+  const all = safeSessionGet<Record<string, FeedCacheEntry>>(FEED_CACHE_KEY, {});
+  return all[cacheKey] ?? null;
+}
+
+export function setFeedCache(cacheKey: string, papers: Paper[]): void {
+  const all = safeSessionGet<Record<string, FeedCacheEntry>>(FEED_CACHE_KEY, {});
+  all[cacheKey] = { papers, fetchedAt: Date.now() };
+  safeSessionSet(FEED_CACHE_KEY, all);
+}
+
 export const STORAGE_EVENT = "my-arxiv:storage";
