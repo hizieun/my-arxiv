@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  getLaterSet,
   getMeta,
   getNotes,
   getReadSet,
@@ -11,10 +12,11 @@ import {
   type NoteMap,
 } from "@/lib/storage";
 
-type Tab = "notes" | "read" | "all";
+type Tab = "notes" | "later" | "read" | "all";
 
 const TABS: { code: Tab; label: string }[] = [
   { code: "notes", label: "노트" },
+  { code: "later", label: "🔖 나중에" },
   { code: "read", label: "읽음" },
   { code: "all", label: "전체" },
 ];
@@ -29,6 +31,7 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<NoteMap>({});
   const [meta, setMeta] = useState<MetaMap>({});
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [laterIds, setLaterIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("notes");
   const [query, setQuery] = useState("");
   const [hydrated, setHydrated] = useState(false);
@@ -38,6 +41,7 @@ export default function NotesPage() {
       setNotes(getNotes());
       setMeta(getMeta());
       setReadIds(getReadSet());
+      setLaterIds(getLaterSet());
     };
     sync();
     setHydrated(true);
@@ -48,6 +52,7 @@ export default function NotesPage() {
   const entries = useMemo(() => {
     const ids = new Set<string>();
     if (tab === "notes" || tab === "all") Object.keys(notes).forEach((id) => ids.add(id));
+    if (tab === "later" || tab === "all") laterIds.forEach((id) => ids.add(id));
     if (tab === "read" || tab === "all") readIds.forEach((id) => ids.add(id));
 
     const q = query.trim().toLowerCase();
@@ -58,6 +63,7 @@ export default function NotesPage() {
         note: notes[id],
         meta: meta[id],
         isRead: readIds.has(id),
+        isLater: laterIds.has(id),
       }))
       .filter(({ note, meta, id }) => {
         if (!q) return true;
@@ -73,7 +79,7 @@ export default function NotesPage() {
         const tb = b.note?.updatedAt ?? b.meta?.publishedAt ?? "";
         return new Date(tb).getTime() - new Date(ta).getTime();
       });
-  }, [notes, meta, readIds, tab, query]);
+  }, [notes, meta, readIds, laterIds, tab, query]);
 
   return (
     <div>
@@ -81,7 +87,7 @@ export default function NotesPage() {
         <h1 className="text-2xl font-bold tracking-tight">노트</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           {hydrated
-            ? `노트 ${Object.keys(notes).length}건 · 읽음 ${readIds.size}건`
+            ? `노트 ${Object.keys(notes).length}건 · 🔖 나중에 ${laterIds.size}건 · 읽음 ${readIds.size}건`
             : " "}
         </p>
       </header>
@@ -120,7 +126,15 @@ export default function NotesPage() {
       {hydrated && entries.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)] p-10 text-center">
           <p className="text-base font-semibold">
-            {query ? "일치하는 항목이 없습니다" : tab === "notes" ? "아직 노트가 없습니다" : tab === "read" ? "읽은 논문이 없습니다" : "기록이 없습니다"}
+            {query
+              ? "일치하는 항목이 없습니다"
+              : tab === "notes"
+              ? "아직 노트가 없습니다"
+              : tab === "later"
+              ? "나중에 읽을 논문이 없습니다"
+              : tab === "read"
+              ? "읽은 논문이 없습니다"
+              : "기록이 없습니다"}
           </p>
           <p className="mt-1 text-sm text-[var(--muted)]">
             피드에서 카드를 열어 노트나 읽음 표시를 남겨보세요.
@@ -128,7 +142,7 @@ export default function NotesPage() {
         </div>
       ) : (
         <ul className="grid gap-3">
-          {entries.map(({ id, note, meta, isRead }) => (
+          {entries.map(({ id, note, meta, isRead, isLater }) => (
             <li key={id} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
                 {meta && (
@@ -136,6 +150,7 @@ export default function NotesPage() {
                     {SOURCE_LABEL[meta.source] ?? meta.source}
                   </span>
                 )}
+                {isLater && <span className="text-amber-600 dark:text-amber-400">🔖 나중에</span>}
                 {isRead && <span className="text-[var(--accent)]">✓ 읽음</span>}
                 {note && <span>📝 노트</span>}
                 <span className="ml-auto font-mono">{id}</span>

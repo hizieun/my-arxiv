@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Paper } from "@/lib/types";
-import { getNotes, getReadSet, rememberPaper, setNote, STORAGE_EVENT, toggleRead } from "@/lib/storage";
+import { getLaterSet, getNotes, getReadSet, rememberPaper, setNote, STORAGE_EVENT, toggleLater, toggleRead } from "@/lib/storage";
 
 interface Props {
   paper: Paper;
@@ -17,6 +17,7 @@ const SOURCE_LABEL: Record<Paper["source"], string> = {
 
 export function PaperCard({ paper }: Props) {
   const [read, setRead] = useState(false);
+  const [later, setLater] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [note, setNoteState] = useState("");
   const [hydrated, setHydrated] = useState(false);
@@ -25,6 +26,7 @@ export function PaperCard({ paper }: Props) {
   useEffect(() => {
     const sync = () => {
       setRead(getReadSet().has(paper.id));
+      setLater(getLaterSet().has(paper.id));
       setNoteState(getNotes()[paper.id]?.body ?? "");
     };
     sync();
@@ -50,6 +52,13 @@ export function PaperCard({ paper }: Props) {
   function handleToggleRead() {
     rememberPaper(paper);
     setRead(toggleRead(paper.id));
+    setLater(getLaterSet().has(paper.id));
+  }
+
+  function handleToggleLater() {
+    rememberPaper(paper);
+    setLater(toggleLater(paper.id));
+    setRead(getReadSet().has(paper.id));
   }
 
   function handleSaveNote() {
@@ -122,6 +131,18 @@ export function PaperCard({ paper }: Props) {
           ].join(" ")}
         >
           {read ? "✓ 읽음" : "읽음 표시"}
+        </button>
+        <button
+          type="button"
+          onClick={handleToggleLater}
+          className={[
+            "rounded-md border px-2.5 py-1 font-medium transition-colors",
+            later
+              ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/60 dark:bg-amber-900/30 dark:text-amber-300"
+              : "border-[var(--border)] hover:border-[var(--muted)]",
+          ].join(" ")}
+        >
+          {later ? "🔖 나중에 읽기" : "🔖 나중에"}
         </button>
         <button
           type="button"

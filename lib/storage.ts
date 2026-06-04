@@ -5,6 +5,7 @@ import type { Paper, PaperSource } from "./types";
 const KEYS = {
   categories: "my-arxiv:categories",
   read: "my-arxiv:read",
+  later: "my-arxiv:later",
   notes: "my-arxiv:notes",
   meta: "my-arxiv:meta",
   summaries: "my-arxiv:summaries",
@@ -42,13 +43,48 @@ export function getReadSet(): Set<string> {
   return new Set(safeGet<string[]>(KEYS.read, []));
 }
 
+export function getLaterSet(): Set<string> {
+  return new Set(safeGet<string[]>(KEYS.later, []));
+}
+
+export type ReadingStatus = "unread" | "later" | "read";
+
+export function getReadingStatus(paperId: string): ReadingStatus {
+  if (getReadSet().has(paperId)) return "read";
+  if (getLaterSet().has(paperId)) return "later";
+  return "unread";
+}
+
+// "읽음" 토글. read로 표시되면 later에서 제거(상호배타).
 export function toggleRead(paperId: string): boolean {
-  const set = getReadSet();
-  const isRead = set.has(paperId);
-  if (isRead) set.delete(paperId);
-  else set.add(paperId);
-  safeSet(KEYS.read, [...set]);
+  const read = getReadSet();
+  const isRead = read.has(paperId);
+  if (isRead) {
+    read.delete(paperId);
+    safeSet(KEYS.read, [...read]);
+  } else {
+    read.add(paperId);
+    const later = getLaterSet();
+    if (later.delete(paperId)) safeSet(KEYS.later, [...later]);
+    safeSet(KEYS.read, [...read]);
+  }
   return !isRead;
+}
+
+// "나중에" 토글. later로 표시되면 read에서 제거(상호배타).
+export function toggleLater(paperId: string): boolean {
+  const later = getLaterSet();
+  const isLater = later.has(paperId);
+  if (isLater) {
+    later.delete(paperId);
+    safeSet(KEYS.later, [...later]);
+  } else {
+    later.add(paperId);
+    const read = getReadSet();
+    if (read.delete(paperId)) safeSet(KEYS.read, [...read]);
+    safeSet(KEYS.later, [...later]);
+  }
+  return !isLater;
 }
 
 export type NoteMap = Record<string, { body: string; updatedAt: string }>;

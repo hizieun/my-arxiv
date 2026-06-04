@@ -13,4 +13,4 @@
 
 ---
 
-<!-- 아이디어 추가 시 여기서부터 -->
+- 2026-06-03 — effect 내 동기 setState 8곳 리팩토링 (`react-hooks/set-state-in-effect` lint 에러). Next 16/React 19 신규 룰. `next build`는 막지 않지만 `npm run lint`는 실패. hydration 패턴(`setHydrated(true)`)을 effect 밖으로 빼거나 다른 방식으로 정리 필요. 8곳: categories/notes/page/paper 페이지 + PaperCard. (status: new)

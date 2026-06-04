@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import type { Paper, PaperSource } from "@/lib/types";
-import { getNotes, getReadSet, getSummaries, rememberPaper, saveSummary, setNote, STORAGE_EVENT, toggleRead } from "@/lib/storage";
+import { getLaterSet, getNotes, getReadSet, getSummaries, rememberPaper, saveSummary, setNote, STORAGE_EVENT, toggleLater, toggleRead } from "@/lib/storage";
 
 const SOURCE_LABEL: Record<PaperSource, string> = {
   arxiv: "arXiv",
@@ -22,6 +22,7 @@ export default function PaperDetailPage({ params }: PageProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [note, setNoteState] = useState("");
   const [read, setRead] = useState(false);
+  const [later, setLater] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export default function PaperDetailPage({ params }: PageProps) {
       setNoteState(notes[paper.id]?.body ?? "");
       setSavedAt(notes[paper.id]?.updatedAt ?? null);
       setRead(getReadSet().has(paper.id));
+      setLater(getLaterSet().has(paper.id));
     };
     sync();
     setHydrated(true);
@@ -101,6 +103,14 @@ export default function PaperDetailPage({ params }: PageProps) {
     if (!paper) return;
     rememberPaper(paper);
     setRead(toggleRead(paper.id));
+    setLater(getLaterSet().has(paper.id));
+  }
+
+  function handleToggleLater() {
+    if (!paper) return;
+    rememberPaper(paper);
+    setLater(toggleLater(paper.id));
+    setRead(getReadSet().has(paper.id));
   }
 
   if (status === "loading") {
@@ -217,6 +227,18 @@ export default function PaperDetailPage({ params }: PageProps) {
           ].join(" ")}
         >
           {hydrated && read ? "✓ 읽음" : "읽음 표시"}
+        </button>
+        <button
+          type="button"
+          onClick={handleToggleLater}
+          className={[
+            "rounded-md border px-3 py-1.5 font-medium transition-colors",
+            hydrated && later
+              ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/60 dark:bg-amber-900/30 dark:text-amber-300"
+              : "border-[var(--border)] hover:border-[var(--muted)]",
+          ].join(" ")}
+        >
+          {hydrated && later ? "🔖 나중에 읽기" : "🔖 나중에"}
         </button>
         {paper.pdfUrl && (
           <a
