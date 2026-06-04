@@ -89,6 +89,9 @@ function PaperDetailView({ paper }: { paper: Paper }) {
   const [summary, setSummary] = useState<string | null>(
     () => getSummaries()[paper.id]?.text ?? null,
   );
+  const [summaryAt, setSummaryAt] = useState<string | null>(
+    () => getSummaries()[paper.id]?.generatedAt ?? null,
+  );
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -123,6 +126,7 @@ function PaperDetailView({ paper }: { paper: Paper }) {
       if (!res.ok) throw new Error(data.error ?? "요약 실패");
       setSummary(data.summary);
       saveSummary(paper.id, data.summary);
+      setSummaryAt(getSummaries()[paper.id]?.generatedAt ?? null);
     } catch (err) {
       setSummaryError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
@@ -221,6 +225,11 @@ function PaperDetailView({ paper }: { paper: Paper }) {
           <div className="space-y-2 text-[15px] leading-relaxed text-[var(--foreground)]/90 whitespace-pre-line">
             {summary}
           </div>
+        )}
+        {summary && summaryAt && !summaryLoading && (
+          <p className="mt-3 text-[11px] text-[var(--muted)]">
+            💾 캐시됨 · {new Date(summaryAt).toLocaleString("ko-KR")} (재호출 없이 저장된 요약 표시 중)
+          </p>
         )}
         {!summary && !summaryLoading && !summaryError && (
           <p className="text-sm text-[var(--muted)]">버튼을 눌러 한국어 핵심 요약을 생성합니다.</p>

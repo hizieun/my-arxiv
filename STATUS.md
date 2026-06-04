@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-`react-hooks/set-state-in-effect` lint 8건 해소 — localStorage hydration 패턴을 `useSyncExternalStore`로 전환. lint/tsc/build 통과 + 브라우저 회귀 검증 완료.
+AI 요약 캐시 UX 개선 — 상세 페이지 요약 본문 아래 "💾 캐시됨 · 날짜시각" 메타 노출. 재방문 시 API 재호출 없이 즉시 표시됨을 사용자가 알 수 있게.
 
 ## 이번 주 목표
 
@@ -13,31 +13,27 @@
 - [x] 사이드 프로젝트 에이전트 체계 셋업 (CLAUDE.md / STATUS.md / docs/)
 - [x] 콜드 응답시간 실측 (Must 1)
 - [x] Phase 4 #1 "나중에 읽기 큐" (ADR + 구현 + 검증, `70b6f12`)
-- [x] `react-hooks/set-state-in-effect` lint 8건 리팩토링
+- [x] `react-hooks/set-state-in-effect` lint 8건 리팩토링 (`96b07c9`)
+- [x] AI 요약 캐시 UX 개선
 
 ## 직전 작업
 
-**`react-hooks/set-state-in-effect` lint 8건 해소.** React 19/Next 16 신규 룰. `next build`는 통과하지만 `npm run lint` 실패 상태였음.
+**AI 요약 캐시 UX 개선.** 같은 논문 재방문 시 캐시된 요약이 즉시 뜨는데도 그 사실이 UI에 드러나지 않던 문제 해소.
 
-- `lib/storage.ts` — `useSyncExternalStore` 기반 훅 추가 (`useCategories`/`useReadSet`/`useLaterSet`/`useNotes`/`useMeta`/`useHydrated`). raw 문자열 기준 스냅샷 캐시로 참조 안정성 확보, `getServerSnapshot`으로 SSR 폴백 → `hydrated` 플래그·effect setState 제거.
-- `categories`/`notes` 페이지·`PaperCard` — effect+setState hydration을 위 훅으로 대체. 읽음/나중에/노트 토글은 storage 쓰기 → `STORAGE_EVENT` → 훅 재구독으로 자동 반영.
-- 상세 페이지(`app/paper/.../page.tsx`) — fetch 래퍼 + `key={paper.id}` inner view로 분리. 편집 가능한 노트/요약은 lazy initializer로 storage에서 1회 시드 (리마운트로 리시드).
-- 피드(`app/page.tsx`) — fetch 결과를 cacheKey로 태깅, **async 콜백에서만 setState**. 로딩/캐시 표시는 render에서 파생. (참고: 기존 `cacheFresh` 분기는 직후 `setHfState("loading")`에 항상 덮여 죽은 코드였음 → 제거)
+- `app/paper/[source]/[id]/page.tsx` — `summaryAt` state 추가 (lazy initializer로 `getSummaries()[id].generatedAt` 시드). 요약 본문 아래 "💾 캐시됨 · {날짜시각} (재호출 없이 저장된 요약 표시 중)" 메타 줄. 생성 직후엔 `saveSummary` 후 storage를 다시 읽어 정확한 timestamp로 갱신.
+- `generatedAt`은 기존 `SummaryMap` 스키마에 이미 있어 데이터 변경 불필요.
 
-검증: lint 0건 · `tsc --noEmit` 통과 · `next build` 성공. 브라우저(preview)에서 피드 로딩/캐시 시드, 읽음·나중에 토글+상호배타, 노트 저장·• 표시, 카테고리 토글+카운트, 상세 read/note 시드·key 리시드, notes 페이지 카운트 모두 OK. 콘솔 에러·hydration mismatch 0건. 패턴 카탈로그는 `docs/learnings.md` (2026-06-04).
+검증(브라우저): 최초 생성 → `POST /api/summary` 1회 + "캐시됨" 메타 표시. **reload 후 요약·메타 즉시 표시되며 `/api/summary` 재호출 0건** (서버 로그 확인). lint/tsc 통과.
+
+<details><summary>이전: lint 8건 해소 (useSyncExternalStore 전환)</summary>
+
+`react-hooks/set-state-in-effect` 8건. `lib/storage.ts`에 `useSyncExternalStore` 기반 훅(`useCategories`/`useReadSet`/`useLaterSet`/`useNotes`/`useMeta`/`useHydrated`) 추가, 각 페이지의 effect+setState hydration을 대체. 상세 페이지는 `key={paper.id}` 리마운트 + lazy initializer 시드. 피드는 async 콜백에서만 setState. 패턴 카탈로그: `docs/learnings.md` (2026-06-04). (`96b07c9`)
+
+</details>
 
 <details><summary>이전: Phase 4 #1 "나중에 읽기 큐"</summary>
 
-구현 완료. ADR: `docs/decisions.md` (2026-06-03).
-
-- `lib/storage.ts` — `getLaterSet`/`toggleLater`/`getReadingStatus` 추가. unread/later/read 상호배타를 토글 함수에서 강제 (read↔later 전환 시 반대편 Set에서 자동 제거). 기존 `getReadSet`/`toggleRead` API 보존.
-- `components/PaperCard.tsx` — "🔖 나중에" 버튼 (amber 톤)
-- `app/notes/page.tsx` — "🔖 나중에" 탭 + 카운트 + 배지
-- `app/paper/[source]/[id]/page.tsx` — 상세 페이지 "나중에" 버튼
-
-검증: 카드/notes/상세 3곳에서 토글·상호배타·필터 모두 OK (storage + UI 양쪽). typecheck 통과.
-
-**부수 발견·수정:** arXiv `id_list`는 버전 suffix(`v1`)를 붙이면 0건 반환 → 피드 카드가 버전 포함 ID를 상세 URL로 넘겨 단건조회가 항상 404였음. `fetchArxivById`에서 suffix 제거로 수정. (`docs/learnings.md`)
+ADR: `docs/decisions.md` (2026-06-03). `getLaterSet`/`toggleLater` 추가, unread/later/read 상호배타를 토글 함수에서 강제. PaperCard·상세에 "🔖 나중에" 버튼, notes에 탭+카운트+배지. 부수 수정: arXiv `id_list` 버전 suffix(`v1`) 404 버그 → `fetchArxivById`에서 suffix 제거. (`70b6f12`, `e845d80`)
 
 </details>
 
@@ -49,8 +45,7 @@
 
 ### Should
 
-1. **AI 요약 캐시 UX 개선** — 현재 localStorage에 캐시되어 있지만, 같은 논문 재방문 시 "재생성" 버튼이 항상 보임. "캐시됨 ✓ · YYYY-MM-DD" 메타 노출.
-2. **Phase 4 #2 결정** — 남은 후보 중 1개 (노트 태그 / 키보드 단축키 / 논문 Q&A). ADR 후 진행.
+1. **Phase 4 #2 결정** — 남은 후보 중 1개 (노트 태그 / 키보드 단축키 / 논문 Q&A). ADR 후 진행.
 
 ### Could
 
