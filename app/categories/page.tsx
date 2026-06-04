@@ -1,24 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AI_CATEGORIES, DEFAULT_SELECTED_CATEGORIES } from "@/lib/categories";
-import { getCategories, setCategories } from "@/lib/storage";
+import { setCategories, useCategories, useHydrated } from "@/lib/storage";
 
 export default function CategoriesPage() {
-  const [selected, setSelected] = useState<string[]>(DEFAULT_SELECTED_CATEGORIES);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setSelected(getCategories(DEFAULT_SELECTED_CATEGORIES));
-    setHydrated(true);
-  }, []);
+  const selected = useCategories(DEFAULT_SELECTED_CATEGORIES);
+  const hydrated = useHydrated();
 
   function toggle(code: string) {
-    setSelected((prev) => {
-      const next = prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code];
-      setCategories(next);
-      return next;
-    });
+    const next = selected.includes(code)
+      ? selected.filter((c) => c !== code)
+      : [...selected, code];
+    setCategories(next); // dispatches STORAGE_EVENT → useCategories re-reads
   }
 
   const grouped = useMemo(() => {

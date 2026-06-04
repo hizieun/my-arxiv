@@ -1,109 +1,109 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PaperCard } from "@/components/PaperCard";
 import { dedupAndSort } from "@/lib/aggregator";
 import { DEFAULT_SELECTED_CATEGORIES } from "@/lib/categories";
-import { getCategories, getFeedCache, setFeedCache, STORAGE_EVENT } from "@/lib/storage";
+import { getFeedCache, setFeedCache, useCategories, useHydrated } from "@/lib/storage";
 import type { Paper } from "@/lib/types";
 
 type Window = "week" | "month" | "all";
 type SortKey = "recent" | "popular";
 type SourceState = "loading" | "ready" | "error";
+type SourceResult = { key: string; papers: Paper[]; state: SourceState };
 
-const FEED_CACHE_TTL_MS = 30 * 60 * 1000;
+const EMPTY_PAPERS: Paper[] = [];
 
 export default function FeedPage() {
-  const [categories, setCats] = useState<string[]>([]);
-  const [arxivPapers, setArxivPapers] = useState<Paper[]>([]);
-  const [hfPapers, setHfPapers] = useState<Paper[]>([]);
-  const [arxivState, setArxivState] = useState<SourceState>("loading");
-  const [hfState, setHfState] = useState<SourceState>("loading");
+  const categories = useCategories(DEFAULT_SELECTED_CATEGORIES);
+  const hydrated = useHydrated();
   const [windowKey, setWindowKey] = useState<Window>("week");
   const [sort, setSort] = useState<SortKey>("recent");
-  const [hydrated, setHydrated] = useState(false);
-  const [usingCache, setUsingCache] = useState(false);
 
-  const loadCats = useCallback(() => {
-    setCats(getCategories(DEFAULT_SELECTED_CATEGORIES));
-  }, []);
-
-  useEffect(() => {
-    loadCats();
-    setHydrated(true);
-    const handler = () => loadCats();
-    window.addEventListener(STORAGE_EVENT, handler);
-    return () => window.removeEventListener(STORAGE_EVENT, handler);
-  }, [loadCats]);
+  // Fetch results are tagged with the cache key they belong to and are only set
+  // inside async callbacks (never synchronously in an effect). Loading state and
+  // the "showing cache" flag are derived during render — so no setState-in-effect.
+  const [arxivFetched, setArxivFetched] = useState<SourceResult | null>(null);
+  const [hfFetched, setHfFetched] = useState<SourceResult | null>(null);
 
   const cacheKey = useMemo(
     () => `cats=${[...categories].sort().join(",")}`,
     [categories],
   );
 
+  // sessionStorage cache, read during render for instant paint (post-hydration
+  // only, so SSR markup matches). Reading sessionStorage is pure per the lint
+  // rules; we no longer compute freshness here (Date.now would be impure).
+  const cachedEntry = useMemo(
+    () => (hydrated ? getFeedCache(cacheKey) : null),
+    [hydrated, cacheKey],
+  );
+  const cachedArxiv = useMemo(
+    () => cachedEntry?.papers.filter((p) => p.source === "arxiv") ?? EMPTY_PAPERS,
+    [cachedEntry],
+  );
+  const cachedHf = useMemo(
+    () => cachedEntry?.papers.filter((p) => p.source !== "arxiv") ?? EMPTY_PAPERS,
+    [cachedEntry],
+  );
+
+  const arxivCur = arxivFetched?.key === cacheKey ? arxivFetched : null;
+  const hfCur = hfFetched?.key === cacheKey ? hfFetched : null;
+  const noArxiv = categories.length === 0;
+
+  const arxivPapers = noArxiv ? EMPTY_PAPERS : arxivCur?.papers ?? cachedArxiv;
+  const hfPapers = hfCur?.papers ?? cachedHf;
+  const arxivState: SourceState = noArxiv ? "ready" : arxivCur?.state ?? "loading";
+  const hfState: SourceState = hfCur?.state ?? "loading";
+  // Showing cached papers while a fresh fetch is still in flight for this key.
+  const usingCache =
+    (hfCur == null && cachedHf.length > 0) ||
+    (!noArxiv && arxivCur == null && cachedArxiv.length > 0);
+
   useEffect(() => {
     if (!hydrated) return;
-
-    const cached = getFeedCache(cacheKey);
-    const cacheFresh = cached && Date.now() - cached.fetchedAt < FEED_CACHE_TTL_MS;
-    if (cached) {
-      const arxivCached = cached.papers.filter((p) => p.source === "arxiv");
-      const hfCached = cached.papers.filter((p) => p.source !== "arxiv");
-      setArxivPapers(arxivCached);
-      setHfPapers(hfCached);
-      setUsingCache(true);
-      if (cacheFresh) {
-        setArxivState("ready");
-        setHfState("ready");
-      }
-    } else {
-      setUsingCache(false);
-    }
-
     let cancelled = false;
+    const key = cacheKey;
 
-    setHfState("loading");
     fetch(`/api/feed?source=hf`)
       .then((r) => r.json())
       .then((data: { papers: Paper[]; errors?: string[] }) => {
         if (cancelled) return;
-        setHfPapers(data.papers ?? []);
-        setHfState(data.errors?.length ? "error" : "ready");
+        setHfFetched({ key, papers: data.papers ?? [], state: data.errors?.length ? "error" : "ready" });
       })
       .catch(() => {
-        if (!cancelled) setHfState("error");
+        if (cancelled) return;
+        const c = getFeedCache(key); // keep cached papers visible on failure
+        setHfFetched({ key, papers: c ? c.papers.filter((p) => p.source !== "arxiv") : [], state: "error" });
       });
 
     if (categories.length > 0) {
-      setArxivState("loading");
       const params = new URLSearchParams({ source: "arxiv", categories: categories.join(",") });
       fetch(`/api/feed?${params}`)
         .then((r) => r.json())
         .then((data: { papers: Paper[]; errors?: string[] }) => {
           if (cancelled) return;
-          setArxivPapers(data.papers ?? []);
-          setArxivState(data.errors?.length ? "error" : "ready");
+          setArxivFetched({ key, papers: data.papers ?? [], state: data.errors?.length ? "error" : "ready" });
         })
         .catch(() => {
-          if (!cancelled) setArxivState("error");
+          if (cancelled) return;
+          const c = getFeedCache(key);
+          setArxivFetched({ key, papers: c ? c.papers.filter((p) => p.source === "arxiv") : [], state: "error" });
         });
-    } else {
-      setArxivPapers([]);
-      setArxivState("ready");
     }
 
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, categories, hydrated]);
+  }, [hydrated, cacheKey, categories]);
 
   const papers = useMemo(() => dedupAndSort(arxivPapers, hfPapers), [arxivPapers, hfPapers]);
 
+  // Write fresh results to the session cache (external write only — no setState).
   useEffect(() => {
     if (arxivState === "ready" && hfState === "ready" && papers.length > 0) {
       setFeedCache(cacheKey, papers);
-      setUsingCache(false);
     }
   }, [arxivState, hfState, papers, cacheKey]);
 

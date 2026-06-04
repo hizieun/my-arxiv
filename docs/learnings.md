@@ -30,6 +30,19 @@
 
 **예방/탐지:** arXiv `id_list`에는 절대 버전 suffix를 붙이지 말 것. `search_query`(피드)와 `id_list`(단건)의 ID 포맷 기대가 다름.
 
+## 2026-06-04 — React 19 / Next 16: localStorage 동기화는 useSyncExternalStore로
+
+**증상:** `npm run lint` 가 `react-hooks/set-state-in-effect` 8건으로 실패. `useEffect`에서 localStorage를 읽어 `setHydrated(true)`/`setState`로 hydration하던 패턴이 전부 걸림 (`next build`·`tsc`는 통과).
+
+**원인:** React Compiler 기반 신규 룰 (eslint-plugin-react-hooks v7, recommended preset → `EffectSetState`). effect 동기 실행 경로의 setState를 데이터플로우로 추적해 cascading render 위험으로 막는다. **호출한 함수(`useCallback` 래퍼 포함) 안의 setState까지 추적**하지만 `.then()`/async 콜백·이벤트 핸들러의 setState는 막지 않음. 룰당 effect 하나에 첫 위반만 리포트 → 한 줄 고쳐도 다음 setState가 새로 뜨므로 effect 전체를 정리해야 함.
+
+**해결 (패턴 카탈로그):**
+- **읽기 전용 외부(브라우저) 상태** → `useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)`. getSnapshot은 **참조 안정성 필수**(매번 새 객체 반환하면 무한 렌더) → raw 문자열 기준 스냅샷 캐시. `getServerSnapshot`으로 SSR 폴백 → hydration mismatch 없음, 별도 `hydrated` 플래그 불필요. `useHydrated()`도 같은 훅(`() => true` / `() => false`)으로 구현. (`lib/storage.ts`)
+- **편집 가능한 상태**(노트 textarea)는 파생 불가 → 부모를 `key={paper.id}`로 리마운트 + `useState(() => getNotes()[id]...)` lazy initializer로 storage에서 1회 시드. (상세 페이지를 fetch 래퍼 + inner view로 분리)
+- **데이터 fetch effect** → 결과를 요청 key로 태깅하고 **async 콜백에서만 setState**. 로딩/캐시 상태는 render에서 파생 (effect 내 동기 setState 0개).
+
+**예방/탐지:** effect 안에서 동기 setState 금지. 외부 store 읽기=uSES, prop 변화로 상태 리셋=key 리마운트, 비동기=콜백. `purity` 룰은 `Date.now`/`Math.random`/`performance.now`만 임퓨어로 막으므로 render/`useMemo`에서 sessionStorage 읽기는 OK(단 freshness용 `Date.now`는 effect로).
+
 ## 2026-06-03 — 피드 cold latency 실측
 
 **증상:** 이전 dev 로그에서 `GET /api/feed` 가 10.6s 걸린 적 있어, 점진적 로딩으로 개선했다고 판단했음. 실제 효과 측정 필요.

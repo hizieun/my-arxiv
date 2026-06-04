@@ -3,7 +3,18 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import type { Paper, PaperSource } from "@/lib/types";
-import { getLaterSet, getNotes, getReadSet, getSummaries, rememberPaper, saveSummary, setNote, STORAGE_EVENT, toggleLater, toggleRead } from "@/lib/storage";
+import {
+  getNotes,
+  getSummaries,
+  rememberPaper,
+  saveSummary,
+  setNote,
+  toggleLater,
+  toggleRead,
+  useLaterSet,
+  useNotes,
+  useReadSet,
+} from "@/lib/storage";
 
 const SOURCE_LABEL: Record<PaperSource, string> = {
   arxiv: "arXiv",
@@ -15,50 +26,72 @@ interface PageProps {
   params: Promise<{ source: string; id: string }>;
 }
 
+type FetchState = { key: string; paper: Paper | null; status: "ready" | "error" };
+
 export default function PaperDetailPage({ params }: PageProps) {
   const { source: rawSource, id } = use(params);
   const source = rawSource as PaperSource;
-  const [paper, setPaper] = useState<Paper | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [note, setNoteState] = useState("");
-  const [read, setRead] = useState(false);
-  const [later, setLater] = useState(false);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const reqKey = `${source}/${id}`;
+
+  // Fetch result is tagged with the request key; `status`/`paper` derive to a
+  // loading/empty state whenever the route params change before the new fetch
+  // resolves. State is only set inside async callbacks (never synchronously),
+  // satisfying react-hooks/set-state-in-effect.
+  const [fetched, setFetched] = useState<FetchState | null>(null);
+  const status: "loading" | "ready" | "error" =
+    fetched?.key === reqKey ? fetched.status : "loading";
+  const paper = fetched?.key === reqKey ? fetched.paper : null;
 
   useEffect(() => {
-    setStatus("loading");
+    let cancelled = false;
     fetch(`/api/paper/${source}/${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: { paper: Paper }) => {
-        setPaper(data.paper);
-        setStatus("ready");
+        if (!cancelled) setFetched({ key: reqKey, paper: data.paper, status: "ready" });
       })
-      .catch(() => setStatus("error"));
-  }, [source, id]);
-
-  useEffect(() => {
-    if (!paper) return;
-    const sync = () => {
-      const notes = getNotes();
-      setNoteState(notes[paper.id]?.body ?? "");
-      setSavedAt(notes[paper.id]?.updatedAt ?? null);
-      setRead(getReadSet().has(paper.id));
-      setLater(getLaterSet().has(paper.id));
+      .catch(() => {
+        if (!cancelled) setFetched({ key: reqKey, paper: null, status: "error" });
+      });
+    return () => {
+      cancelled = true;
     };
-    sync();
-    setHydrated(true);
-    window.addEventListener(STORAGE_EVENT, sync);
+  }, [reqKey, source, id]);
 
-    const cached = getSummaries()[paper.id];
-    if (cached) setSummary(cached.text);
+  if (status === "loading") {
+    return <div className="space-y-3"><div className="h-8 w-2/3 animate-pulse rounded bg-[var(--card)]" /><div className="h-48 animate-pulse rounded-xl bg-[var(--card)]" /></div>;
+  }
+  if (status === "error" || !paper) {
+    return (
+      <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)] p-10 text-center">
+        <p className="text-base font-semibold">논문을 불러올 수 없습니다</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">{source} / {id}</p>
+        <Link href="/" className="mt-4 inline-flex rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+          피드로 돌아가기
+        </Link>
+      </div>
+    );
+  }
 
-    return () => window.removeEventListener(STORAGE_EVENT, sync);
-  }, [paper]);
+  // Keyed by paper.id so navigating to a different paper remounts the view,
+  // re-seeding its local (editable) note/summary state from storage cleanly —
+  // no setState-in-effect needed for hydration.
+  return <PaperDetailView key={paper.id} paper={paper} />;
+}
+
+function PaperDetailView({ paper }: { paper: Paper }) {
+  const read = useReadSet().has(paper.id);
+  const later = useLaterSet().has(paper.id);
+  const savedAt = useNotes()[paper.id]?.updatedAt ?? null;
+
+  // Editable / generated state seeded once from storage at mount (this view is
+  // client-only: it renders only after the async fetch resolves).
+  const [note, setNoteState] = useState<string>(() => getNotes()[paper.id]?.body ?? "");
+  const [summary, setSummary] = useState<string | null>(
+    () => getSummaries()[paper.id]?.text ?? null,
+  );
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const autoGrow = useCallback(() => {
     const el = textareaRef.current;
@@ -68,18 +101,16 @@ export default function PaperDetailPage({ params }: PageProps) {
   }, []);
 
   useEffect(() => {
-    if (paper) autoGrow();
-  }, [paper, note, autoGrow]);
+    autoGrow();
+  }, [note, autoGrow]);
 
   function handleSave() {
-    if (!paper) return;
     rememberPaper(paper);
-    setNote(paper.id, note);
-    setSavedAt(new Date().toISOString());
+    setNote(paper.id, note); // savedAt re-derives from useNotes()
   }
 
   async function handleSummarize() {
-    if (!paper || summaryLoading) return;
+    if (summaryLoading) return;
     setSummaryLoading(true);
     setSummaryError(null);
     try {
@@ -100,32 +131,13 @@ export default function PaperDetailPage({ params }: PageProps) {
   }
 
   function handleToggleRead() {
-    if (!paper) return;
     rememberPaper(paper);
-    setRead(toggleRead(paper.id));
-    setLater(getLaterSet().has(paper.id));
+    toggleRead(paper.id);
   }
 
   function handleToggleLater() {
-    if (!paper) return;
     rememberPaper(paper);
-    setLater(toggleLater(paper.id));
-    setRead(getReadSet().has(paper.id));
-  }
-
-  if (status === "loading") {
-    return <div className="space-y-3"><div className="h-8 w-2/3 animate-pulse rounded bg-[var(--card)]" /><div className="h-48 animate-pulse rounded-xl bg-[var(--card)]" /></div>;
-  }
-  if (status === "error" || !paper) {
-    return (
-      <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)] p-10 text-center">
-        <p className="text-base font-semibold">논문을 불러올 수 없습니다</p>
-        <p className="mt-1 text-sm text-[var(--muted)]">{source} / {id}</p>
-        <Link href="/" className="mt-4 inline-flex rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-          피드로 돌아가기
-        </Link>
-      </div>
-    );
+    toggleLater(paper.id);
   }
 
   return (
@@ -221,24 +233,24 @@ export default function PaperDetailPage({ params }: PageProps) {
           onClick={handleToggleRead}
           className={[
             "rounded-md border px-3 py-1.5 font-medium transition-colors",
-            hydrated && read
+            read
               ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
               : "border-[var(--border)] hover:border-[var(--muted)]",
           ].join(" ")}
         >
-          {hydrated && read ? "✓ 읽음" : "읽음 표시"}
+          {read ? "✓ 읽음" : "읽음 표시"}
         </button>
         <button
           type="button"
           onClick={handleToggleLater}
           className={[
             "rounded-md border px-3 py-1.5 font-medium transition-colors",
-            hydrated && later
+            later
               ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/60 dark:bg-amber-900/30 dark:text-amber-300"
               : "border-[var(--border)] hover:border-[var(--muted)]",
           ].join(" ")}
         >
-          {hydrated && later ? "🔖 나중에 읽기" : "🔖 나중에"}
+          {later ? "🔖 나중에 읽기" : "🔖 나중에"}
         </button>
         {paper.pdfUrl && (
           <a

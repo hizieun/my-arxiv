@@ -1,16 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  getLaterSet,
-  getMeta,
-  getNotes,
-  getReadSet,
-  STORAGE_EVENT,
-  type MetaMap,
-  type NoteMap,
-} from "@/lib/storage";
+import { useMemo, useState } from "react";
+import { useHydrated, useLaterSet, useMeta, useNotes, useReadSet } from "@/lib/storage";
 
 type Tab = "notes" | "later" | "read" | "all";
 
@@ -28,26 +20,13 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export default function NotesPage() {
-  const [notes, setNotes] = useState<NoteMap>({});
-  const [meta, setMeta] = useState<MetaMap>({});
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [laterIds, setLaterIds] = useState<Set<string>>(new Set());
+  const notes = useNotes();
+  const meta = useMeta();
+  const readIds = useReadSet();
+  const laterIds = useLaterSet();
   const [tab, setTab] = useState<Tab>("notes");
   const [query, setQuery] = useState("");
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    const sync = () => {
-      setNotes(getNotes());
-      setMeta(getMeta());
-      setReadIds(getReadSet());
-      setLaterIds(getLaterSet());
-    };
-    sync();
-    setHydrated(true);
-    window.addEventListener(STORAGE_EVENT, sync);
-    return () => window.removeEventListener(STORAGE_EVENT, sync);
-  }, []);
+  const hydrated = useHydrated();
 
   const entries = useMemo(() => {
     const ids = new Set<string>();

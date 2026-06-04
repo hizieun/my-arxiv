@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Paper } from "@/lib/types";
-import { getLaterSet, getNotes, getReadSet, rememberPaper, setNote, STORAGE_EVENT, toggleLater, toggleRead } from "@/lib/storage";
+import { rememberPaper, setNote, toggleLater, toggleRead, useLaterSet, useNotes, useReadSet } from "@/lib/storage";
 
 interface Props {
   paper: Paper;
@@ -16,24 +16,12 @@ const SOURCE_LABEL: Record<Paper["source"], string> = {
 };
 
 export function PaperCard({ paper }: Props) {
-  const [read, setRead] = useState(false);
-  const [later, setLater] = useState(false);
+  const read = useReadSet().has(paper.id);
+  const later = useLaterSet().has(paper.id);
+  const savedNote = useNotes()[paper.id]?.body ?? "";
   const [showNote, setShowNote] = useState(false);
   const [note, setNoteState] = useState("");
-  const [hydrated, setHydrated] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    const sync = () => {
-      setRead(getReadSet().has(paper.id));
-      setLater(getLaterSet().has(paper.id));
-      setNoteState(getNotes()[paper.id]?.body ?? "");
-    };
-    sync();
-    setHydrated(true);
-    window.addEventListener(STORAGE_EVENT, sync);
-    return () => window.removeEventListener(STORAGE_EVENT, sync);
-  }, [paper.id]);
 
   const autoGrow = useCallback(() => {
     const el = textareaRef.current;
@@ -49,16 +37,25 @@ export function PaperCard({ paper }: Props) {
     }
   }, [showNote, autoGrow]);
 
+  // read/later are derived from storage; toggling writes + dispatches
+  // STORAGE_EVENT, which re-reads both sets (mutual exclusion handled in lib).
   function handleToggleRead() {
     rememberPaper(paper);
-    setRead(toggleRead(paper.id));
-    setLater(getLaterSet().has(paper.id));
+    toggleRead(paper.id);
   }
 
   function handleToggleLater() {
     rememberPaper(paper);
-    setLater(toggleLater(paper.id));
-    setRead(getReadSet().has(paper.id));
+    toggleLater(paper.id);
+  }
+
+  function toggleNoteEditor() {
+    if (showNote) {
+      setShowNote(false);
+    } else {
+      setNoteState(savedNote); // seed editor from the saved note on open
+      setShowNote(true);
+    }
   }
 
   function handleSaveNote() {
@@ -73,7 +70,7 @@ export function PaperCard({ paper }: Props) {
     <article
       className={[
         "rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 transition-opacity",
-        hydrated && read ? "opacity-60" : "",
+        read ? "opacity-60" : "",
       ].join(" ")}
     >
       <header className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
@@ -146,10 +143,10 @@ export function PaperCard({ paper }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => setShowNote((v) => !v)}
+          onClick={toggleNoteEditor}
           className="rounded-md border border-[var(--border)] px-2.5 py-1 font-medium hover:border-[var(--muted)]"
         >
-          📝 노트{note ? " •" : ""}
+          📝 노트{savedNote ? " •" : ""}
         </button>
         {paper.pdfUrl && (
           <a

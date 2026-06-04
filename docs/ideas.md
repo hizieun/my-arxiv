@@ -13,4 +13,4 @@
 
 ---
 
-- 2026-06-03 — effect 내 동기 setState 8곳 리팩토링 (`react-hooks/set-state-in-effect` lint 에러). Next 16/React 19 신규 룰. `next build`는 막지 않지만 `npm run lint`는 실패. hydration 패턴(`setHydrated(true)`)을 effect 밖으로 빼거나 다른 방식으로 정리 필요. 8곳: categories/notes/page/paper 페이지 + PaperCard. (status: new)
+- 2026-06-03 — effect 내 동기 setState 8곳 리팩토링 (`react-hooks/set-state-in-effect` lint 에러). Next 16/React 19 신규 룰. `next build`는 막지 않지만 `npm run lint`는 실패. hydration 패턴(`setHydrated(true)`)을 effect 밖으로 빼거나 다른 방식으로 정리 필요. 8곳: categories/notes/page/paper 페이지 + PaperCard. (status: done — 2026-06-04) → localStorage 읽기를 `useSyncExternalStore` 훅(`lib/storage.ts`)으로 전환, 상세 페이지는 `key` 리마운트 + lazy init, 피드 fetch는 async 콜백에서만 setState. lint/tsc/build 통과, 브라우저 회귀 검증 완료. 패턴은 `docs/learnings.md` 참조.

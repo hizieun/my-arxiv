@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import type { Paper, PaperSource } from "./types";
 
 const KEYS = {
@@ -182,3 +183,98 @@ export function setFeedCache(cacheKey: string, papers: Paper[]): void {
 }
 
 export const STORAGE_EVENT = "my-arxiv:storage";
+
+// ---------------------------------------------------------------------------
+// React hooks: read localStorage as an external store (SSR-safe).
+//
+// Reading from localStorage in a `useEffect` + `setState` "hydration" pattern
+// trips the React 19 / Next 16 lint rule `react-hooks/set-state-in-effect`
+// (synchronous setState in an effect → cascading renders). `useSyncExternalStore`
+// is the sanctioned way to read external (browser) state: the value is read in
+// `getSnapshot` (render), and `getServerSnapshot` supplies the SSR/first-paint
+// fallback so there is no hydration mismatch and no setState-in-effect.
+// ---------------------------------------------------------------------------
+
+function subscribeStorage(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(STORAGE_EVENT, callback);
+  return () => window.removeEventListener(STORAGE_EVENT, callback);
+}
+
+// uSES requires getSnapshot to return a referentially-stable value while the
+// underlying data is unchanged. localStorage getters parse JSON into fresh
+// objects every call, so cache the parsed result keyed by the raw string and
+// only recompute when that raw string changes.
+const snapshotCache = new Map<string, { raw: string | null; value: unknown }>();
+
+function readSnapshot<T>(key: string, parse: (raw: string | null) => T): T {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(key);
+  } catch {
+    raw = null;
+  }
+  const cached = snapshotCache.get(key);
+  if (cached && cached.raw === raw) return cached.value as T;
+  const value = parse(raw);
+  snapshotCache.set(key, { raw, value });
+  return value;
+}
+
+// Stable empty fallbacks for getServerSnapshot (referentially constant, read-only).
+const EMPTY_SET: ReadonlySet<string> = new Set();
+const EMPTY_NOTES: NoteMap = {};
+const EMPTY_META: MetaMap = {};
+
+export function useCategories(fallback: string[]): string[] {
+  return useSyncExternalStore(
+    subscribeStorage,
+    () => readSnapshot(KEYS.categories, (raw) => (raw ? (JSON.parse(raw) as string[]) : fallback)),
+    () => fallback,
+  );
+}
+
+export function useReadSet(): ReadonlySet<string> {
+  return useSyncExternalStore(
+    subscribeStorage,
+    () => readSnapshot(KEYS.read, (raw) => new Set<string>(raw ? (JSON.parse(raw) as string[]) : [])),
+    () => EMPTY_SET,
+  );
+}
+
+export function useLaterSet(): ReadonlySet<string> {
+  return useSyncExternalStore(
+    subscribeStorage,
+    () => readSnapshot(KEYS.later, (raw) => new Set<string>(raw ? (JSON.parse(raw) as string[]) : [])),
+    () => EMPTY_SET,
+  );
+}
+
+export function useNotes(): NoteMap {
+  return useSyncExternalStore(
+    subscribeStorage,
+    () => readSnapshot(KEYS.notes, (raw) => (raw ? (JSON.parse(raw) as NoteMap) : EMPTY_NOTES)),
+    () => EMPTY_NOTES,
+  );
+}
+
+export function useMeta(): MetaMap {
+  return useSyncExternalStore(
+    subscribeStorage,
+    () => readSnapshot(KEYS.meta, (raw) => (raw ? (JSON.parse(raw) as MetaMap) : EMPTY_META)),
+    () => EMPTY_META,
+  );
+}
+
+// True once the component has hydrated on the client; false on the server and
+// during the hydration render. Lets us gate client-only work without a
+// setState-in-effect hydration flag.
+const subscribeNever = () => () => {};
+
+export function useHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+}
