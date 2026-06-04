@@ -25,7 +25,9 @@ function buildSearchQuery({ categories, query }: FetchOptions): string {
 }
 
 export async function fetchArxivById(arxivId: string): Promise<Paper | null> {
-  const url = `${ARXIV_API}?id_list=${encodeURIComponent(arxivId)}`;
+  // arXiv id_list는 버전 suffix(v1, v2…)를 붙이면 결과가 0건이 됨 → 떼고 최신 버전 조회
+  const bareId = arxivId.replace(/v\d+$/, "");
+  const url = `${ARXIV_API}?id_list=${encodeURIComponent(bareId)}`;
   const res = await fetch(url, {
     headers: { "User-Agent": "my-arxiv/0.3 (personal paper feed)" },
     next: { revalidate: 3600 },

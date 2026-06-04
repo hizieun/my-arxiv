@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-06-03 — arXiv 단건 조회가 버전 suffix에서 404
+
+**증상:** 피드 카드 클릭 → 상세 페이지가 "논문을 불러올 수 없습니다" (단건 조회 404). 피드 목록에는 멀쩡히 나오는 논문인데 상세만 실패.
+
+**원인:** arXiv `id_list` 파라미터는 **버전 suffix(`v1`, `v2`)를 붙이면 결과가 0건**이 됨.
+- `id_list=2606.03990v1` → 0 entries
+- `id_list=2606.03990` → 1 entry ✅
+- 피드 카드의 `detailHref`는 `paper.id`(=`arxiv:2606.03990v1`)에서 prefix만 떼므로 버전이 남아 상세 URL에 그대로 전달됨 → `fetchArxivById`가 404.
+
+**해결:** `fetchArxivById`에서 `arxivId.replace(/v\d+$/, "")`로 버전 suffix 제거 후 조회 (최신 버전 반환).
+
+**예방/탐지:** arXiv `id_list`에는 절대 버전 suffix를 붙이지 말 것. `search_query`(피드)와 `id_list`(단건)의 ID 포맷 기대가 다름.
+
 ## 2026-06-03 — 피드 cold latency 실측
 
 **증상:** 이전 dev 로그에서 `GET /api/feed` 가 10.6s 걸린 적 있어, 점진적 로딩으로 개선했다고 판단했음. 실제 효과 측정 필요.
