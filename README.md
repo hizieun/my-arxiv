@@ -38,6 +38,7 @@
 - 읽기 상태 3단계: **안읽음 / 🔖 나중에 / ✓ 읽음** (상호배타)
 - 탭 필터: 노트 / 🔖 나중에 / 읽음 / 전체
 - 키워드 검색 (제목·저자·본문)
+- **노트 태그** — 노트 본문에 `#RAG` `#LongContext`처럼 쓰면 자동 인식. 태그 칩으로 필터(빈도순, 대소문자 무시). 마크다운 헤딩(`# 제목`)과는 구분됨
 - 읽음·나중에·노트 저장 시 논문 메타데이터 자동 캐싱 → 풍부한 목록 표시
 
 ### 🔥 인기도 신호
@@ -124,6 +125,7 @@ lib/
   huggingface.ts               # HF daily + search + 단건 어댑터
   aggregator.ts                # dedup + 인기 신호 머지
   gemini.ts                    # Gemini 요약 어댑터
+  tags.ts                      # 노트 #태그 파서 (인라인 추출 + 집계)
   categories.ts                # 카테고리 데이터
   storage.ts                   # localStorage/sessionStorage 헬퍼 + useSyncExternalStore 훅
   types.ts                     # Paper, ArxivCategory 등
@@ -144,7 +146,7 @@ HuggingFace daily/search 어댑터, 통합 검색 페이지
 - ✅ AI 한국어 요약 (Gemini 2.5 Flash, abstract → 3-bullet + 캐시)
 - ✅ "나중에 읽기" 큐 (읽음/안읽음 이분법 해소 → 3단계)
 - ✅ 피드 점진적 로딩 + sessionStorage 캐시
-- ⬜ 노트 태그 (`#RAG`, `#LongContext`) + 콜렉션
+- ✅ 노트 태그 (`#RAG`, `#LongContext` 본문 인라인 파싱 + 필터)
 - ⬜ 키보드 단축키 (`j/k`, `r`, `n`, `Cmd+K`)
 - ⬜ PWA (오프라인 캐시, 홈 화면 추가)
 

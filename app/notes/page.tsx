@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useHydrated, useLaterSet, useMeta, useNotes, useReadSet } from "@/lib/storage";
+import { aggregateTags, extractTags, noteHasTag } from "@/lib/tags";
 
 type Tab = "notes" | "later" | "read" | "all";
 
@@ -26,7 +27,14 @@ export default function NotesPage() {
   const laterIds = useLaterSet();
   const [tab, setTab] = useState<Tab>("notes");
   const [query, setQuery] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null); // lowercase key
   const hydrated = useHydrated();
+
+  // 전체 노트 본문에서 태그 집계 (빈도순). 노트가 있는 항목만 태그를 가짐.
+  const tagCounts = useMemo(
+    () => aggregateTags(Object.values(notes).map((n) => n.body)),
+    [notes],
+  );
 
   const entries = useMemo(() => {
     const ids = new Set<string>();
@@ -44,6 +52,11 @@ export default function NotesPage() {
         isRead: readIds.has(id),
         isLater: laterIds.has(id),
       }))
+      .filter(({ note }) => {
+        // 태그 필터: 활성 태그가 있으면 그 태그를 본문에 가진 노트만 (노트 없으면 제외).
+        if (activeTag) return note ? noteHasTag(note.body, activeTag) : false;
+        return true;
+      })
       .filter(({ note, meta, id }) => {
         if (!q) return true;
         return (
@@ -58,7 +71,7 @@ export default function NotesPage() {
         const tb = b.note?.updatedAt ?? b.meta?.publishedAt ?? "";
         return new Date(tb).getTime() - new Date(ta).getTime();
       });
-  }, [notes, meta, readIds, laterIds, tab, query]);
+  }, [notes, meta, readIds, laterIds, tab, query, activeTag]);
 
   return (
     <div>
@@ -102,10 +115,44 @@ export default function NotesPage() {
         </div>
       </div>
 
+      {tagCounts.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs text-[var(--muted)]">태그</span>
+          {tagCounts.map(({ tag, key, count }) => {
+            const active = activeTag === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTag(active ? null : key)}
+                className={[
+                  "rounded-full border px-2 py-0.5 text-xs font-medium transition-colors",
+                  active
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--muted)] hover:text-[var(--foreground)]",
+                ].join(" ")}
+              >
+                #{tag}
+                <span className="ml-1 opacity-60">{count}</span>
+              </button>
+            );
+          })}
+          {activeTag && (
+            <button
+              type="button"
+              onClick={() => setActiveTag(null)}
+              className="ml-1 text-xs text-[var(--muted)] underline hover:text-[var(--foreground)]"
+            >
+              필터 해제
+            </button>
+          )}
+        </div>
+      )}
+
       {hydrated && entries.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)] p-10 text-center">
           <p className="text-base font-semibold">
-            {query
+            {query || activeTag
               ? "일치하는 항목이 없습니다"
               : tab === "notes"
               ? "아직 노트가 없습니다"
@@ -154,6 +201,28 @@ export default function NotesPage() {
                 <pre className="mt-3 whitespace-pre-wrap font-sans text-sm text-[var(--foreground)]/85">
                   {note.body}
                 </pre>
+              )}
+              {note && extractTags(note.body).length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {extractTags(note.body).map((tag) => {
+                    const key = tag.toLowerCase();
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setActiveTag(activeTag === key ? null : key)}
+                        className={[
+                          "rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                          activeTag === key
+                            ? "bg-[var(--accent)] text-white"
+                            : "bg-[var(--accent-soft)] text-[var(--accent)] hover:opacity-80",
+                        ].join(" ")}
+                      >
+                        #{tag}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
               {note && (
                 <p className="mt-2 text-xs text-[var(--muted)]">
