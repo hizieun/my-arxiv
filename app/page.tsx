@@ -216,12 +216,13 @@ function StatusStrip({
   usingCache: boolean;
   arxivEnabled: boolean;
 }) {
+  // 실패는 사용자에게 노출하지 않는다. arXiv가 일시적으로 막혀도(429 등)
+  // HF·캐시로 피드가 채워지므로, 한쪽 소스 실패는 조용히 처리.
+  // 둘 다 실패해 결과가 0인 경우만 본문의 bothError 안내가 담당한다.
   const items: string[] = [];
   if (usingCache) items.push("💾 캐시에서 즉시 표시 (갱신 중)");
   if (hfState === "loading") items.push("HF 데일리 로딩 중…");
   if (arxivEnabled && arxivState === "loading") items.push("arXiv 로딩 중…");
-  if (hfState === "error") items.push("⚠ HF 실패");
-  if (arxivEnabled && arxivState === "error") items.push("⚠ arXiv 실패");
   if (items.length === 0) return null;
   return (
     <div className="mb-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">

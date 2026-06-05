@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-Phase 4 #2 "노트 태그" 구현·검증 완료 — 본문 인라인 `#태그` 자동 파싱 + notes 페이지 태그 필터. 직전: README 전면 갱신.
+arXiv 429 "Rate exceeded" 대응 — 백오프 재시도 + 타임아웃(29s→9.3s) + 실패 경고 숨김(HF/캐시 폴백). 직전: Phase 4 #2 노트 태그.
 
 ## 이번 주 목표
 
@@ -16,16 +16,23 @@ Phase 4 #2 "노트 태그" 구현·검증 완료 — 본문 인라인 `#태그` 
 - [x] `react-hooks/set-state-in-effect` lint 8건 리팩토링 (`96b07c9`)
 - [x] AI 요약 캐시 UX 개선 (`6677b30`)
 - [x] README 전면 갱신 (`d24f3e0`)
-- [x] Phase 4 #2 "노트 태그" (ADR + 구현 + 검증)
+- [x] Phase 4 #2 "노트 태그" (ADR + 구현 + 검증, `91633bf`)
+- [x] arXiv 429 rate limit 대응 (재시도+타임아웃+경고숨김)
 
 ## 직전 작업
 
-**Phase 4 #2 "노트 태그".** ADR: `docs/decisions.md` (2026-06-04). 본문 인라인 `#태그` 자동 파싱 방식 (별도 입력 UI·스키마 변경 없음).
+**arXiv 429 "Rate exceeded" 대응.** 피드에 "⚠ arXiv 실패" 경고가 뜨던 문제. 진단 결과 arXiv가 IP 기반 rate limit으로 429 반환(카테고리 수 무관, `cat:cs.AI` 1건도 429). 개발 중 반복 호출로 일시 차단된 상태.
 
-- `lib/tags.ts` (신규) — `extractTags`/`noteHasTag`/`aggregateTags`. 정규식 `(?:^|\s)#([A-Za-z0-9가-힣_-]+)` → 헤딩(`# `/`## `)과 구분. 대소문자 무시 그룹핑(표시는 첫 등장 원문).
-- `app/notes/page.tsx` — 검색바 아래 태그 필터 줄(빈도순 칩 + 카운트, 단일 선택, "필터 해제"). 노트 카드에 태그 칩(활성 강조). `activeTag` 상태로 필터, 빈 상태 메시지에 태그 케이스 반영.
+- `lib/arxiv.ts` `arxivFetch()` (신규 헬퍼) — 429/5xx에 지수 백오프 재시도 3회(500→1000ms) + 각 시도 AbortController 타임아웃 6s. 차단 시 arXiv가 429를 느리게(15s+) 주던 걸 끊어 라우트 29s→9.3s. User-Agent를 식별 가능하게 통일(`0.4 +repo`).
+- `app/page.tsx` `StatusStrip` — "⚠ arXiv/HF 실패" 칩 제거. 한쪽 소스 실패는 HF·캐시 폴백으로 조용히 처리, 둘 다 실패 시에만 본문 안내(bothError).
 
-검증(브라우저): 태그 집계 빈도순(`#LLM 2` 등) 정확, **헤딩 `## 헤딩 테스트`는 태그로 안 잡히고 `#LLM`만 인식** ✅, `#LLM` 필터 → 해당 노트 2건만, 칩 활성 강조 OK. lint/tsc 통과.
+검증(브라우저): arXiv 429 지속 차단 상태에서도 **경고 단어 0건·상태 칩 0개·HF 25건 정상 표시**. 재시도 후에도 무경고. 원인·해결 상세는 `docs/learnings.md` (2026-06-05). lint/tsc 통과.
+
+<details><summary>이전: Phase 4 #2 "노트 태그" (91633bf)</summary>
+
+ADR: `docs/decisions.md` (2026-06-04). `lib/tags.ts`로 본문 인라인 `#태그` 파싱(헤딩과 구분, 대소문자 무시). notes 페이지 태그 필터 줄 + 카드 칩. 검증: 빈도순 집계·헤딩 미인식·필터 정확.
+
+</details>
 
 <details><summary>이전: AI 요약 캐시 메타 노출 (6677b30)</summary>
 
