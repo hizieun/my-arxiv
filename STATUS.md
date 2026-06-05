@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-arXiv 429 "Rate exceeded" 대응 — 백오프 재시도 + 타임아웃(29s→9.3s) + 실패 경고 숨김(HF/캐시 폴백). 직전: Phase 4 #2 노트 태그.
+AI 요약 품질 업그레이드 — 단순 3줄 → 구조화 심층 요약(문제/접근/결과/의의 + 용어해설 + thinking 활성). 직전: arXiv 429 대응.
 
 ## 이번 주 목표
 
@@ -17,16 +17,23 @@ arXiv 429 "Rate exceeded" 대응 — 백오프 재시도 + 타임아웃(29s→9.
 - [x] AI 요약 캐시 UX 개선 (`6677b30`)
 - [x] README 전면 갱신 (`d24f3e0`)
 - [x] Phase 4 #2 "노트 태그" (ADR + 구현 + 검증, `91633bf`)
-- [x] arXiv 429 rate limit 대응 (재시도+타임아웃+경고숨김)
+- [x] arXiv 429 rate limit 대응 (재시도+타임아웃+경고숨김, `aa4fe87`)
+- [x] AI 요약 품질 업그레이드 (구조화 심층 요약)
 
 ## 직전 작업
 
-**arXiv 429 "Rate exceeded" 대응.** 피드에 "⚠ arXiv 실패" 경고가 뜨던 문제. 진단 결과 arXiv가 IP 기반 rate limit으로 429 반환(카테고리 수 무관, `cat:cs.AI` 1건도 429). 개발 중 반복 호출로 일시 차단된 상태.
+**AI 요약 품질 업그레이드.** "요약만 봐도 논문 주요 내용 파악" 목표. 입력은 abstract 유지(레버 1), 출력·추론을 고도화.
 
-- `lib/arxiv.ts` `arxivFetch()` (신규 헬퍼) — 429/5xx에 지수 백오프 재시도 3회(500→1000ms) + 각 시도 AbortController 타임아웃 6s. 차단 시 arXiv가 429를 느리게(15s+) 주던 걸 끊어 라우트 29s→9.3s. User-Agent를 식별 가능하게 통일(`0.4 +repo`).
-- `app/page.tsx` `StatusStrip` — "⚠ arXiv/HF 실패" 칩 제거. 한쪽 소스 실패는 HF·캐시 폴백으로 조용히 처리, 둘 다 실패 시에만 본문 안내(bothError).
+- `lib/gemini.ts` — 프롬프트를 단순 3줄 → **구조화 심층 요약**으로: 📌한 줄 / 🎯풀려는 문제 / 🔧핵심 접근 / 📊핵심 결과(수치 포함) / 💡의의. 전문 용어 괄호 풀이, **환각 가드**("abstract에 없는 수치·사실 지어내지 말 것"). 마크다운 기호 금지 → 이모지 헤더+줄바꿈(기존 `whitespace-pre-line` 렌더 그대로, 외부 마크다운 SDK 불필요).
+- `thinkingBudget: 0` 제거 → gemini-2.5-flash 기본 동적 thinking 활성으로 추론 품질↑ (응답 ~9s, 캐시되므로 1회만).
 
-검증(브라우저): arXiv 429 지속 차단 상태에서도 **경고 단어 0건·상태 칩 0개·HF 25건 정상 표시**. 재시도 후에도 무경고. 원인·해결 상세는 `docs/learnings.md` (2026-06-05). lint/tsc 통과.
+검증: `/api/summary` 직접 호출(Attention Is All You Need) — 5섹션·수치 정확(28.4/41.8 BLEU)·용어해설·환각 0. HF 논문 상세(OPRD)에서 UI 렌더 확인 — 이모지 섹션 가독성 우수, 캐시 메타 정상. tsc 통과.
+
+<details><summary>이전: arXiv 429 대응 (aa4fe87)</summary>
+
+피드 "⚠ arXiv 실패" 경고 → 원인은 arXiv IP rate limit 429(카테고리 수 무관). `lib/arxiv.ts` `arxivFetch()`로 백오프 재시도 3회 + 타임아웃 6s(29s→9.3s), `StatusStrip`에서 실패 칩 제거(HF·캐시 폴백). 상세: `docs/learnings.md` (2026-06-05).
+
+</details>
 
 <details><summary>이전: Phase 4 #2 "노트 태그" (91633bf)</summary>
 
