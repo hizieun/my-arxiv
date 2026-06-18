@@ -75,6 +75,53 @@ export async function fetchArxivById(arxivId: string): Promise<Paper | null> {
   return parseAtom(xml)[0] ?? null;
 }
 
+const FULLTEXT_MAX_CHARS = 45000;
+const FULLTEXT_MIN_CHARS = 500;
+
+// arxiv.org/html/{id} (LaTeXML HTML)에서 본문 텍스트를 추출.
+// HTML 미제공·추출 과소·실패 시 null → 호출부는 abstract 요약으로 폴백.
+export async function fetchArxivFulltext(arxivId: string): Promise<string | null> {
+  const bareId = arxivId.replace(/v\d+$/, "");
+  const url = `https://arxiv.org/html/${encodeURIComponent(bareId)}`;
+  let res: Response;
+  try {
+    res = await arxivFetch(url, 86400); // 본문은 잘 안 바뀜 → 하루 캐시
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+  const text = extractFulltext(await res.text());
+  return text.length >= FULLTEXT_MIN_CHARS ? text : null;
+}
+
+function extractFulltext(html: string): string {
+  // 1. <article> 본문만 (없으면 전체)
+  const art = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+  let s = art ? art[1] : html;
+  // 2. script/style 제거
+  s = s.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "");
+  // 3. 참고문헌 섹션부터 끝까지 제거 (요약에 불필요, 토큰 낭비)
+  s = s.replace(/<section[^>]*ltx_bibliography[\s\S]*$/i, "");
+  // 4. 수식: alttext(원본 LaTeX) 보존 후 math 태그 제거
+  s = s.replace(/<math[^>]*\salttext="([^"]*)"[^>]*>[\s\S]*?<\/math>/gi, " $1 ");
+  s = s.replace(/<math[^>]*>[\s\S]*?<\/math>/gi, " ");
+  // 5. 블록 종료 태그 → 줄바꿈
+  s = s.replace(/<\/(p|h[1-6]|section|li|div|figcaption|tr)>/gi, "\n");
+  // 6. 나머지 태그 제거
+  s = s.replace(/<[^>]+>/g, "");
+  // 7. HTML 엔티티 디코드
+  s = s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, " ");
+  // 8. 공백 정규화 + 길이 상한
+  s = s.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return s.length > FULLTEXT_MAX_CHARS ? s.slice(0, FULLTEXT_MAX_CHARS) : s;
+}
+
 export async function fetchArxivPapers(opts: FetchOptions): Promise<Paper[]> {
   const search = buildSearchQuery(opts);
   const params = new URLSearchParams({

@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-AI 요약 품질 업그레이드 — 단순 3줄 → 구조화 심층 요약(문제/접근/결과/의의 + 용어해설 + thinking 활성). 직전: arXiv 429 대응.
+AI 요약 레버 2 — arXiv 본문(HTML) 전문을 가져와 본문 기반 심층 요약(폴백 포함). 직전: 레버 1 구조화 심층 요약.
 
 ## 이번 주 목표
 
@@ -18,16 +18,25 @@ AI 요약 품질 업그레이드 — 단순 3줄 → 구조화 심층 요약(문
 - [x] README 전면 갱신 (`d24f3e0`)
 - [x] Phase 4 #2 "노트 태그" (ADR + 구현 + 검증, `91633bf`)
 - [x] arXiv 429 rate limit 대응 (재시도+타임아웃+경고숨김, `aa4fe87`)
-- [x] AI 요약 품질 업그레이드 (구조화 심층 요약)
+- [x] AI 요약 품질 업그레이드 — 레버 1 구조화 심층 요약 (`ed6041a`)
+- [x] AI 요약 레버 2 — arXiv 본문(HTML) 기반 심층 요약 + 폴백
 
 ## 직전 작업
 
-**AI 요약 품질 업그레이드.** "요약만 봐도 논문 주요 내용 파악" 목표. 입력은 abstract 유지(레버 1), 출력·추론을 고도화.
+**AI 요약 레버 2 — 본문 기반 요약.** ADR: `docs/decisions.md` (2026-06-05). arXiv 전문을 입력에 넣어 abstract엔 없는 방법·실험 디테일까지 반영.
 
-- `lib/gemini.ts` — 프롬프트를 단순 3줄 → **구조화 심층 요약**으로: 📌한 줄 / 🎯풀려는 문제 / 🔧핵심 접근 / 📊핵심 결과(수치 포함) / 💡의의. 전문 용어 괄호 풀이, **환각 가드**("abstract에 없는 수치·사실 지어내지 말 것"). 마크다운 기호 금지 → 이모지 헤더+줄바꿈(기존 `whitespace-pre-line` 렌더 그대로, 외부 마크다운 SDK 불필요).
-- `thinkingBudget: 0` 제거 → gemini-2.5-flash 기본 동적 thinking 활성으로 추론 품질↑ (응답 ~9s, 캐시되므로 1회만).
+- `lib/arxiv.ts` `fetchArxivFulltext()` (신규) — `arxiv.org/html/{id}`에서 정규식으로 본문 추출(`<article>`→bibliography/math/태그 제거→엔티티 디코드, 길이 상한 45k자). HTML 없음·과소·실패 시 `null`.
+- `lib/gemini.ts` `summarizePaper({title, abstract, fulltext?})` — fulltext 있으면 본문 프롬프트, 없으면 abstract 프롬프트. 503/과부하 일시 오류 1s→2s 백오프 재시도 3회.
+- `app/api/summary/route.ts` — `paperId`→`extractArxivId`→`fetchArxivFulltext` 시도, 실패 시 abstract 폴백. 응답에 `mode`("fulltext"|"abstract").
+- `lib/storage.ts` `saveSummary(id, text, mode?)` + 상세 페이지 "📄 본문 기반" 배지(emerald).
 
-검증: `/api/summary` 직접 호출(Attention Is All You Need) — 5섹션·수치 정확(28.4/41.8 BLEU)·용어해설·환각 0. HF 논문 상세(OPRD)에서 UI 렌더 확인 — 이모지 섹션 가독성 우수, 캐시 메타 정상. tsc 통과.
+검증: Mistral 7B(`/api/summary`) — mode fulltext, abstract엔 없던 GQA/SWA 작동·윈도우 수식·캐시 8배 감소 등 디테일 반영. OPRD UI — 손실함수 수식·28레이어 등 + 배지 렌더 OK. 폴백(존재X id) — mode abstract 정상. tsc/lint 통과. 상세: `docs/learnings.md` (2026-06-18).
+
+<details><summary>이전: AI 요약 레버 1 구조화 심층 요약 (ed6041a)</summary>
+
+프롬프트를 단순 3줄 → 구조화 5섹션(📌🎯🔧📊💡) + 환각 가드 + 용어 풀이. `thinkingBudget: 0` 제거(동적 thinking). 이모지 헤더+줄바꿈으로 마크다운 SDK 없이 렌더. 검증: Attention 논문 5섹션·수치 정확.
+
+</details>
 
 <details><summary>이전: arXiv 429 대응 (aa4fe87)</summary>
 

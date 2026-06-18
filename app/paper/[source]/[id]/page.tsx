@@ -92,6 +92,9 @@ function PaperDetailView({ paper }: { paper: Paper }) {
   const [summaryAt, setSummaryAt] = useState<string | null>(
     () => getSummaries()[paper.id]?.generatedAt ?? null,
   );
+  const [summaryMode, setSummaryMode] = useState<string | null>(
+    () => getSummaries()[paper.id]?.mode ?? null,
+  );
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -120,13 +123,14 @@ function PaperDetailView({ paper }: { paper: Paper }) {
       const res = await fetch("/api/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: paper.title, abstract: paper.abstract }),
+        body: JSON.stringify({ title: paper.title, abstract: paper.abstract, paperId: paper.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "요약 실패");
       setSummary(data.summary);
-      saveSummary(paper.id, data.summary);
+      saveSummary(paper.id, data.summary, data.mode);
       setSummaryAt(getSummaries()[paper.id]?.generatedAt ?? null);
+      setSummaryMode(data.mode ?? null);
     } catch (err) {
       setSummaryError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
@@ -192,6 +196,14 @@ function PaperDetailView({ paper }: { paper: Paper }) {
           <span className="rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
             Gemini
           </span>
+          {summary && summaryMode === "fulltext" && (
+            <span
+              className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              title="논문 본문 전문을 바탕으로 생성된 요약"
+            >
+              📄 본문 기반
+            </span>
+          )}
           {!summary && !summaryLoading && (
             <button
               type="button"

@@ -30,8 +30,10 @@
 ### 🤖 AI 한국어 요약
 - 상세 페이지에서 "한국어 요약 보기" → **구조화 심층 요약** (요약만 봐도 논문 핵심 파악)
   - 📌 한 줄 요약 / 🎯 풀려는 문제 / 🔧 핵심 접근 / 📊 핵심 결과(수치 포함) / 💡 의의
-  - 전문 용어는 괄호로 풀이, abstract에 없는 사실은 지어내지 않도록 가드
-- 모델: **Google Gemini 2.5 Flash** (`@google/genai`, 동적 thinking 활성)
+  - 전문 용어는 괄호로 풀이, 본문/abstract에 없는 사실은 지어내지 않도록 가드
+- **본문 기반 요약** — `arxiv.org/html`에서 논문 전문을 가져와 방법·실험 디테일까지 반영 (📄 본문 기반 배지)
+  - 본문 HTML이 없는 논문은 abstract 기반 요약으로 자동 폴백 (graceful degradation)
+- 모델: **Google Gemini 2.5 Flash** (`@google/genai`, 동적 thinking 활성, 503 재시도)
 - 생성 결과는 `localStorage`에 캐싱 → 같은 논문 재방문 시 **API 재호출 없이 즉시 표시**
 - "💾 캐시됨 · 날짜시각" 메타 + "↺ 재생성" 버튼
 - `GOOGLE_API_KEY` 환경변수 필요 (아래 [실행](#실행) 참고)
@@ -145,7 +147,7 @@ HuggingFace daily/search 어댑터, 통합 검색 페이지
 상세 페이지, 노트 검색·탭·자동 높이, 인기도 신호, Bio + Neuroscience 카테고리
 
 ### Phase 4 — 진행 중
-- ✅ AI 한국어 요약 (Gemini 2.5 Flash, 구조화 심층 요약 + 캐시)
+- ✅ AI 한국어 요약 (Gemini 2.5 Flash, 본문 기반 구조화 심층 요약 + 캐시)
 - ✅ "나중에 읽기" 큐 (읽음/안읽음 이분법 해소 → 3단계)
 - ✅ 피드 점진적 로딩 + sessionStorage 캐시
 - ✅ 노트 태그 (`#RAG`, `#LongContext` 본문 인라인 파싱 + 필터)

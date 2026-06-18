@@ -1,10 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 
-function buildPrompt(title: string, abstract: string): string {
-  return `당신은 AI/ML 논문을 한국어로 깊이 있게 요약하는 전문가입니다.
-아래 논문의 Abstract를 바탕으로, **이 요약만 읽어도 논문의 핵심을 파악할 수 있도록** 구조화해 작성하세요.
-
-다음 섹션 제목(이모지 포함)을 그대로 사용하고, 각 섹션 사이는 빈 줄로 구분하세요.
+const SECTION_GUIDE = `다음 섹션 제목(이모지 포함)을 그대로 사용하고, 각 섹션 사이는 빈 줄로 구분하세요.
 마크다운 기호(#, *, -, \`)는 쓰지 말고, 각 섹션 본문은 자연스러운 문장으로 작성하세요.
 
 📌 한 줄 요약
@@ -17,10 +13,16 @@ function buildPrompt(title: string, abstract: string): string {
 제안하는 방법·아이디어의 핵심과 작동 방식. 무엇이 새로운지 분명히.
 
 📊 핵심 결과
-주요 성과. Abstract에 수치(정확도·배수·% 등)가 있으면 반드시 포함.
+주요 성과와 구체적 수치(정확도·배수·% 등). 실험·평가 결과가 있으면 포함.
 
 💡 의의
-왜 중요한지, 어떤 분야·후속 연구에 기여하는지.
+왜 중요한지, 어떤 분야·후속 연구에 기여하는지.`;
+
+function buildAbstractPrompt(title: string, abstract: string): string {
+  return `당신은 AI/ML 논문을 한국어로 깊이 있게 요약하는 전문가입니다.
+아래 논문의 Abstract를 바탕으로, **이 요약만 읽어도 논문의 핵심을 파악할 수 있도록** 구조화해 작성하세요.
+
+${SECTION_GUIDE}
 
 작성 규칙:
 - 한국어로, 각 섹션은 2~4문장 분량으로 충실하게.
@@ -33,16 +35,61 @@ Abstract:
 ${abstract}`;
 }
 
-export async function summarizeAbstract(title: string, abstract: string): Promise<string> {
+function buildFulltextPrompt(title: string, abstract: string, fulltext: string): string {
+  return `당신은 AI/ML 논문을 한국어로 깊이 있게 요약하는 전문가입니다.
+아래 논문의 **본문 전문**을 바탕으로, **이 요약만 읽어도 논문의 핵심을 파악할 수 있도록** 구조화해 작성하세요.
+본문에서 방법의 구체적 작동 방식과 실험 결과의 수치를 적극 활용하세요.
+
+${SECTION_GUIDE}
+
+작성 규칙:
+- 한국어로, 각 섹션을 충실하게. 특히 🔧 핵심 접근과 📊 핵심 결과는 본문 근거로 구체적으로.
+- 본문에 없는 사실·수치를 지어내지 마세요. 본문에 근거한 내용만 서술하세요.
+- 전문 용어는 처음 나올 때 괄호로 짧게 풀어주세요. 예: RAG(검색 증강 생성).
+- 본문에 LaTeX 잔재나 수식 기호가 섞여 있을 수 있으니, 의미만 취해 자연스러운 한국어로 풀어주세요.
+
+제목: ${title}
+
+Abstract:
+${abstract}
+
+본문 전문:
+${fulltext}`;
+}
+
+interface SummarizeInput {
+  title: string;
+  abstract: string;
+  fulltext?: string | null;
+}
+
+// fulltext가 주어지면 본문 기반 심층 요약, 없으면 abstract 기반 요약.
+export async function summarizePaper({ title, abstract, fulltext }: SummarizeInput): Promise<string> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_API_KEY not configured");
 
   const ai = new GoogleGenAI({ apiKey });
+  const prompt = fulltext
+    ? buildFulltextPrompt(title, abstract, fulltext)
+    : buildAbstractPrompt(title, abstract);
+
   // thinkingConfig를 명시하지 않아 gemini-2.5-flash의 기본 동적 thinking이
-  // 활성화됨 → 구조화·추론 품질 향상. (이전엔 속도 위해 thinkingBudget: 0으로 껐음)
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: buildPrompt(title, abstract),
-  });
-  return response.text ?? "";
+  // 활성화됨 → 구조화·추론 품질 향상.
+  // 503/과부하 등 일시 오류는 짧게 재시도(특히 본문 요약은 입력이 커 503 확률↑).
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+      return response.text ?? "";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const transient = /\b(503|500|UNAVAILABLE|overloaded|high demand|deadline)\b/i.test(msg);
+      if (!transient || attempt === maxAttempts - 1) throw err;
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1))); // 1s → 2s
+    }
+  }
+  throw new Error("Gemini: no response"); // 도달 불가 (루프가 반환/throw)
 }

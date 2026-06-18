@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { summarizeAbstract } from "@/lib/gemini";
+import { fetchArxivFulltext } from "@/lib/arxiv";
+import { summarizePaper } from "@/lib/gemini";
+import { extractArxivId } from "@/lib/huggingface";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -7,8 +9,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "title and abstract required" }, { status: 400 });
   }
   try {
-    const summary = await summarizeAbstract(body.title as string, body.abstract as string);
-    return NextResponse.json({ summary });
+    // paperId가 arXiv id로 환산되면 본문 전문을 시도 → 실패 시 abstract로 폴백.
+    const arxivId = body.paperId ? extractArxivId(body.paperId as string) : null;
+    const fulltext = arxivId ? await fetchArxivFulltext(arxivId) : null;
+
+    const summary = await summarizePaper({
+      title: body.title as string,
+      abstract: body.abstract as string,
+      fulltext,
+    });
+    return NextResponse.json({ summary, mode: fulltext ? "fulltext" : "abstract" });
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
     console.error("[summary]", raw);

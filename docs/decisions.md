@@ -67,3 +67,31 @@ Phase 4 #2로 노트 태그 도입. 노트가 쌓일수록 `#RAG`·`#LongContext
 **나중에 재검토할 조건:**
 - 태그 rename/merge/삭제, 태그별 색상·설명 등 "태그를 1급 엔티티로" 다뤄야 하면 B(별도 필드 + 입력 UI)로 전환.
 - SQLite 마이그레이션 시 태그를 별도 테이블로 정규화.
+
+## 2026-06-05 — AI 요약 입력 확장 (본문 소스·파싱)
+
+**상황:**
+AI 요약 품질을 "요약만 봐도 논문 핵심 파악" 수준으로. 레버 1(abstract 기반 구조화)은 완료. 레버 2로 **논문 본문**을 입력에 넣어 더 깊은 요약을 만든다. 본문 소스·파싱 방식·폴백을 정해야 함.
+
+**옵션:**
+- 본문 소스 — A. `arxiv.org/html/{id}` (LaTeXML HTML) / B. `arxiv.org/pdf/{id}` (PDF)
+- 파싱 — A. 정규식 텍스트 추출(외부 SDK 없음) / B. PDF 파서·HTML 파서 라이브러리 도입
+
+**선택:** HTML(`arxiv.org/html/{id}`) + 정규식 추출. PDF·외부 파서 미사용.
+
+**근거:**
+- arxiv.org/html은 최근 논문 대부분 제공(LaTeXML 변환). 확인: 표본 3편 모두 200 + 산문 추출 양호(예: Mistral 7B 18.5k자).
+- PDF 파싱은 무겁고 외부 라이브러리 필요 → vision의 "외부 SDK 최소화"와 충돌. HTML 정규식 추출은 기존 arXiv Atom 파서와 동일 철학.
+- 추출 파이프라인: `<article>` 추출 → script/style·bibliography 제거 → `<math>`는 `alttext`(원본 LaTeX) 보존 후 제거 → 블록 태그를 줄바꿈으로 → 태그 제거 → 엔티티 디코드 → 길이 상한(45k자).
+- **폴백 = graceful degradation**: HTML 없음(404)·추출 결과 과소(<500자)·네트워크 실패 시 abstract 요약(레버 1)으로 자동 폴백. 즉 레버 2는 레버 1의 상위 호환.
+- 본문 fetch는 **서버(/api/summary)**에서 수행(본문이 커서 클라이언트 왕복은 비효율). 상세 페이지는 paper.id만 전달, 서버가 `extractArxivId`로 arXiv id 도출(HF 논문도 arXiv id면 본문 사용).
+- 응답·캐시에 `mode`("fulltext"|"abstract") 기록 → UI에 "📄 본문 기반" 배지.
+
+**트레이드오프:**
+- 본문 입력으로 토큰·비용·응답시간↑ (thinking 포함 ~10s+). → 길이 상한 45k자 + localStorage 캐시(논문당 1회)로 완화.
+- arxiv.org HTML은 모든 논문엔 없음 → 폴백으로 흡수(품질은 레버 1 수준).
+- 무료 quota 입력 토큰 부담 — 1회성·캐시라 실사용 영향 미미. 문제 시 상한 하향.
+
+**나중에 재검토할 조건:**
+- HTML 미제공 논문 비중이 크면 PDF 파싱(별도 서비스/워커) 도입 검토.
+- 토큰 비용이 문제되면 본문에서 핵심 섹션(intro/method/conclusion)만 선별 추출.

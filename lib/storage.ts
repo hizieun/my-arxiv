@@ -133,15 +133,16 @@ export function rememberPaper(paper: Paper): void {
   safeSet(KEYS.meta, meta);
 }
 
-type SummaryMap = Record<string, { text: string; generatedAt: string }>;
+export type SummaryMode = "fulltext" | "abstract";
+type SummaryMap = Record<string, { text: string; generatedAt: string; mode?: SummaryMode }>;
 
 export function getSummaries(): SummaryMap {
   return safeGet<SummaryMap>(KEYS.summaries, {});
 }
 
-export function saveSummary(paperId: string, text: string): void {
+export function saveSummary(paperId: string, text: string, mode?: SummaryMode): void {
   const summaries = getSummaries();
-  summaries[paperId] = { text, generatedAt: new Date().toISOString() };
+  summaries[paperId] = { text, generatedAt: new Date().toISOString(), mode };
   safeSet(KEYS.summaries, summaries);
 }
 

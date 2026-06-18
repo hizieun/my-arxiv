@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-06-18 — arXiv 본문 추출(HTML) + Gemini 503
+
+**배운 점 (요약 본문 기반화):**
+- arXiv는 `arxiv.org/html/{id}` (LaTeXML 변환 HTML)로 본문 전문 제공 — 최근 논문 대부분 200, 없으면 404. `export.arxiv.org`(API)와 **다른 호스트**라 rate limit도 별개.
+- 정규식 추출로 충분: `<article>` → script/style·`ltx_bibliography` 제거 → `<math alttext>`(원본 LaTeX) 보존 후 math 제거 → 블록 태그 줄바꿈 → 태그 제거 → 엔티티 디코드 → 길이 상한(45k자). 외부 파서 불필요.
+- 단건 id는 버전 suffix 떼고(`v1`) 조회. 본문은 `extractArxivId`로 arxiv/hf prefix 모두 처리 → HF 논문도 arXiv 본문 사용.
+- **폴백 필수**: HTML 404·추출 과소(<500자)·실패 → `null` → abstract 요약(레버 1). 본문 요약은 abstract 요약의 상위 호환.
+
+**Gemini 503 "high demand":**
+- gemini-2.5-flash가 일시 과부하 시 503 UNAVAILABLE 반환. 본문 요약은 입력이 커 처리가 길어 503 확률↑. → `summarizePaper`에 일시 오류(503/500/UNAVAILABLE/overloaded) 1s→2s 백오프 재시도 3회. (429/quota는 재시도 무의미라 제외)
+
+**dev 서버 주의:** Turbopack dev 서버가 무거운 동시 요청(arXiv 재시도 + 요약) 중 간헐 종료됨. preview 환경 특이사항 — foreground 단일 호출은 안정. Vercel serverless는 요청별 격리라 무관.
+
 ## 2026-06-05 — arXiv 429 "Rate exceeded" + 느린 응답
 
 **증상:** 피드에 "⚠ arXiv 실패" 경고. arXiv 논문이 안 뜨고 HF만 보임.
