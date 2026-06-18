@@ -3,6 +3,10 @@ import { fetchArxivFulltext } from "@/lib/arxiv";
 import { summarizePaper } from "@/lib/gemini";
 import { extractArxivId } from "@/lib/huggingface";
 
+// 본문 fetch + Gemini(thinking) 요약은 기본 함수 타임아웃(Vercel Hobby ~10s)을
+// 넘길 수 있어 상한을 늘린다. (Hobby는 최대 60s까지 허용)
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.title || !body?.abstract) {

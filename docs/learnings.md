@@ -30,6 +30,8 @@
 
 **dev 서버 주의:** Turbopack dev 서버가 무거운 동시 요청(arXiv 재시도 + 요약) 중 간헐 종료됨. preview 환경 특이사항 — foreground 단일 호출은 안정. Vercel serverless는 요청별 격리라 무관.
 
+**본문 요약 응답시간 (후속, 2026-06-18):** 본문 45k자 + 무제한 동적 thinking + 무제한 출력 → Gemini가 ~30s 소요. 긴 논문에서 **Vercel 함수 타임아웃(Hobby ~10s)에 걸려 "요약 생성 실패"**. 해결: ① `thinkingConfig.thinkingBudget: 2048`로 thinking 제한 ② `maxOutputTokens: 4096` + 프롬프트 "간결히" ③ 본문 상한 45k→28k자 ④ route `export const maxDuration = 60`. 결과 30s→15s, 출력 4000자→1400자(품질 유지). 교훈: LLM 호출 라우트는 thinking·출력·입력을 상한으로 묶고 maxDuration을 명시할 것.
+
 ## 2026-06-05 — arXiv 429 "Rate exceeded" + 느린 응답
 
 **증상:** 피드에 "⚠ arXiv 실패" 경고. arXiv 논문이 안 뜨고 HF만 보임.

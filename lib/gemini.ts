@@ -43,10 +43,10 @@ function buildFulltextPrompt(title: string, abstract: string, fulltext: string):
 ${SECTION_GUIDE}
 
 작성 규칙:
-- 한국어로, 각 섹션을 충실하게. 특히 🔧 핵심 접근과 📊 핵심 결과는 본문 근거로 구체적으로.
+- 한국어로, 각 섹션은 2~4문장으로 핵심만 간결하게. 특히 🔧 핵심 접근과 📊 핵심 결과는 본문 근거로 구체적으로(단, 장황하지 않게).
 - 본문에 없는 사실·수치를 지어내지 마세요. 본문에 근거한 내용만 서술하세요.
 - 전문 용어는 처음 나올 때 괄호로 짧게 풀어주세요. 예: RAG(검색 증강 생성).
-- 본문에 LaTeX 잔재나 수식 기호가 섞여 있을 수 있으니, 의미만 취해 자연스러운 한국어로 풀어주세요.
+- 본문에 LaTeX 잔재나 수식 기호가 섞여 있을 수 있으니, 수식 기호를 그대로 옮기지 말고 의미만 취해 자연스러운 한국어로 풀어주세요.
 
 제목: ${title}
 
@@ -73,15 +73,19 @@ export async function summarizePaper({ title, abstract, fulltext }: SummarizeInp
     ? buildFulltextPrompt(title, abstract, fulltext)
     : buildAbstractPrompt(title, abstract);
 
-  // thinkingConfig를 명시하지 않아 gemini-2.5-flash의 기본 동적 thinking이
-  // 활성화됨 → 구조화·추론 품질 향상.
-  // 503/과부하 등 일시 오류는 짧게 재시도(특히 본문 요약은 입력이 커 503 확률↑).
+  // thinkingBudget을 제한해 응답 시간을 통제(무제한 동적 thinking은 본문 요약에서
+  // 30s+까지 늘어나 Vercel 함수 타임아웃·UX 문제). 2048이면 구조화엔 충분.
+  // maxOutputTokens로 출력 폭주도 방지. 503/과부하는 짧게 재시도.
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
+        config: {
+          thinkingConfig: { thinkingBudget: 2048 },
+          maxOutputTokens: 4096,
+        },
       });
       return response.text ?? "";
     } catch (err) {

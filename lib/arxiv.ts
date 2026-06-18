@@ -75,7 +75,7 @@ export async function fetchArxivById(arxivId: string): Promise<Paper | null> {
   return parseAtom(xml)[0] ?? null;
 }
 
-const FULLTEXT_MAX_CHARS = 45000;
+const FULLTEXT_MAX_CHARS = 28000; // 입력 토큰·응답시간 통제 (intro/method/results 충분)
 const FULLTEXT_MIN_CHARS = 500;
 
 // arxiv.org/html/{id} (LaTeXML HTML)에서 본문 텍스트를 추출.
