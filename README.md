@@ -152,7 +152,7 @@ HuggingFace daily/search 어댑터, 통합 검색 페이지
 - ✅ 피드 점진적 로딩 + sessionStorage 캐시
 - ✅ 노트 태그 (`#RAG`, `#LongContext` 본문 인라인 파싱 + 필터)
 - ⬜ 키보드 단축키 (`j/k`, `r`, `n`, `Cmd+K`)
-- ⬜ PWA (오프라인 캐시, 홈 화면 추가)
+- 🔶 PWA — 1차 설치 가능(manifest + 코드 생성 아이콘 + standalone) ✅ / 오프라인 캐시(서비스워커) 2차 ⬜
 
 ### Phase 5+ — 후보
 - 논문 Q&A (abstract 기반 자유 질문)

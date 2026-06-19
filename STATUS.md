@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-본문 요약 응답시간 단축(30s→15s) — thinkingBudget·출력·본문 상한 제한 + maxDuration. 긴 논문 "요약 실패"(Vercel 타임아웃) 해소. 직전: 레버 2 본문 기반 요약.
+PWA 1차 — 홈 화면 설치 가능(manifest + 코드 생성 아이콘 + standalone). 오프라인 캐시(서비스워커)는 2차. 직전: 본문 요약 응답시간 단축.
 
 ## 이번 주 목표
 
@@ -20,17 +20,24 @@
 - [x] arXiv 429 rate limit 대응 (재시도+타임아웃+경고숨김, `aa4fe87`)
 - [x] AI 요약 품질 업그레이드 — 레버 1 구조화 심층 요약 (`ed6041a`)
 - [x] AI 요약 레버 2 — arXiv 본문(HTML) 기반 심층 요약 + 폴백 (`f7fea58`)
-- [x] 본문 요약 응답시간 단축 (긴 논문 타임아웃 실패 해소)
+- [x] 본문 요약 응답시간 단축 (긴 논문 타임아웃 실패 해소, `9dfbaba`)
+- [x] PWA 1차 — 설치 가능 (manifest + 코드 생성 아이콘)
 
 ## 직전 작업
 
-**본문 요약 응답시간 단축.** 긴 논문(예: 2606.19341, 본문 628KB)에서 "요약 생성 실패" 발생 → 본문 45k자 + 무제한 thinking + 무제한 출력으로 Gemini ~30s, Vercel 함수 타임아웃(Hobby ~10s) 초과가 원인.
+**PWA 1차 — 홈 화면 설치 가능.** ADR: `docs/decisions.md` (2026-06-18). vision의 "PWA 설치 가능하게" 목표, roadmap 7월 테마.
 
-- `lib/gemini.ts` — `thinkingConfig.thinkingBudget: 2048`(무제한 동적 → 제한) + `maxOutputTokens: 4096` + 본문 프롬프트 "간결히".
-- `lib/arxiv.ts` — `FULLTEXT_MAX_CHARS` 45k → 28k자.
-- `app/api/summary/route.ts` — `export const maxDuration = 60` (Vercel 함수 시간 확보).
+- `app/icon.tsx`(512)·`app/apple-icon.tsx`(180) — `ImageResponse`(next/og)로 아이콘 **코드 생성** (accent #2563eb 배경 + 📚). 외부 PNG 자산·도구 불필요.
+- `app/manifest.ts` — Next 메타데이터 라우트. `display: standalone`, theme `#2563eb`, bg `#fafafa`, icons → `/icon`.
+- `app/layout.tsx` — `viewport.themeColor`(Next 16은 metadata→viewport 이동) + `metadata.appleWebApp`.
 
-검증: 같은 논문 본문 요약 30s→15s, 출력 4000자→1408자, 품질(5섹션·수치·디테일) 유지. abstract 경로도 정상. tsc/lint 통과. 상세: `docs/learnings.md` (2026-06-18).
+검증(브라우저): manifest.webmanifest 200(application/manifest+json), /icon·/apple-icon PNG 생성·📚 렌더 확인, head에 manifest·apple-touch-icon·theme-color·web-app-capable 자동 주입. localhost secure context로 설치 조건 충족. tsc/lint 통과.
+
+<details><summary>이전: 본문 요약 응답시간 단축 (9dfbaba)</summary>
+
+긴 논문(본문 628KB)에서 Gemini ~30s → Vercel 타임아웃으로 "요약 실패". `thinkingBudget: 2048` + `maxOutputTokens: 4096` + 본문 상한 45k→28k + route `maxDuration = 60`. 결과 30s→15s, 출력 4000자→1408자, 품질 유지. 상세: `docs/learnings.md` (2026-06-18).
+
+</details>
 
 <details><summary>이전: AI 요약 레버 2 본문 기반 요약 (f7fea58)</summary>
 
@@ -89,14 +96,14 @@ ADR: `docs/decisions.md` (2026-06-03). `getLaterSet`/`toggleLater` 추가, unrea
 
 ### Should
 
-1. **Phase 4 #3 결정** — 남은 후보 중 1개 (키보드 단축키 / 논문 Q&A). ADR 후 진행.
-   - 키보드 단축키: 가장 작음, 한 세션 확실. Q&A: AI 심화 방향, 채팅 UI라 시간 여유 필요.
+1. **PWA 2차 — 오프라인 캐시(서비스워커)** — 마지막 피드/노트를 오프라인에서. next 기본 SW 미포함 → `next-pwa` 도입 또는 수동 SW. 의존성 결정이라 ADR 먼저.
+2. **남은 Phase 4 후보** — 키보드 단축키(작음) / 논문 Q&A(본문 인프라 재활용, 채팅 UI).
 
 ### Could
 
-2. **PWA 매니페스트 기초 작업** — 매니페스트 + 아이콘만이라도 추가 (vision의 PWA 목표 부합, 한 세션에 가능)
 3. **`.next/cache` 사이즈 모니터링** — arXiv 응답이 누적되며 폴더가 커지는지 점검
 4. **노트 태그 후속** — 상세 페이지 노트 에디터에도 태그 칩 미리보기? (지금은 notes 페이지에만 노출)
+5. **배포본 PWA 설치 확인** — Vercel(https)에서 실제 모바일 "홈 화면에 추가" 동작 점검
 
 ## 막힌 부분
 
@@ -104,6 +111,7 @@ ADR: `docs/decisions.md` (2026-06-03). `getLaterSet`/`toggleLater` 추가, unrea
 
 ## 결정 대기 중
 
-- **Phase 4 #3 항목 선택** (키보드 단축키 / 논문 Q&A 중)
+- **PWA 2차 도입 여부** — 서비스워커(오프라인). `next-pwa` 의존성 vs 수동 SW.
+- **남은 Phase 4 후보 우선순위** (키보드 단축키 / 논문 Q&A)
 - **영어 UI 지원 시점** — vision에 "한국어 우선, 영어는 후순위"로 명시. 도입 시점은 미정.
 - **`AGENTS.md`와 새 `CLAUDE.md`의 관계** — 현재 CLAUDE.md가 `@AGENTS.md`로 시작해 룰을 흡수. 향후 AGENTS.md 내용이 늘어나면 통합 또는 분리 재검토 가능.

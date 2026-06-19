@@ -95,3 +95,28 @@ AI 요약 품질을 "요약만 봐도 논문 핵심 파악" 수준으로. 레버
 **나중에 재검토할 조건:**
 - HTML 미제공 논문 비중이 크면 PDF 파싱(별도 서비스/워커) 도입 검토.
 - 토큰 비용이 문제되면 본문에서 핵심 섹션(intro/method/conclusion)만 선별 추출.
+
+## 2026-06-18 — PWA 1차 (아이콘 생성·manifest 방식)
+
+**상황:**
+vision의 "PWA 설치 가능하게" 목표. 1차로 **홈 화면 설치 가능**까지(매니페스트 + 아이콘 + 메타). 오프라인 캐시(서비스워커)는 2차로 분리.
+
+**옵션:**
+- 아이콘 — A. `ImageResponse`(next/og)로 **코드 생성** / B. 정적 PNG를 외부 도구로 만들어 `public/`에 배치
+- 매니페스트 — A. `app/manifest.ts`(Next 메타데이터 라우트) / B. 정적 `public/manifest.json`
+
+**선택:** 아이콘=A(ImageResponse 코드 생성), 매니페스트=A(`app/manifest.ts`).
+
+**근거:**
+- 아이콘 PNG를 외부 도구(sharp·sips 등)로 만들면 새 의존성·바이너리 자산이 생김. `ImageResponse`는 Next 내장(next/og)이라 외부 SDK 0개로 192/512/apple 아이콘을 코드로 생성 → vision의 "외부 SDK 최소화" 준수, 색·이모지 변경도 코드로.
+- `app/manifest.ts`는 Next 16 공식 메타데이터 라우트(타입 `MetadataRoute.Manifest`), 색상 토큰을 코드에서 참조해 일관성 유지.
+- 색상: `theme_color #2563eb`(accent), `background_color #fafafa`(라이트 배경), `display: standalone`.
+- 1차 구성: `app/icon.tsx`(512) · `app/apple-icon.tsx`(180) · `app/manifest.ts` · `layout.tsx`에 `viewport.themeColor`(Next 16은 themeColor가 metadata→viewport로 이동) + `appleWebApp`.
+
+**트레이드오프:**
+- `ImageResponse` 아이콘은 요청 시 렌더(런타임 비용) — 단 메타데이터 라우트라 빌드/캐시되어 실사용 영향 미미.
+- manifest `icons.src`가 생성 아이콘 경로(`/icon`)를 가리키는데, Next 메타데이터 라우트 경로 동작은 브라우저 검증으로 확인(설치 가능성·아이콘 로드).
+
+**나중에 재검토할 조건:**
+- 2차: 서비스워커(오프라인 — 마지막 피드/노트 캐시). next 기본은 SW 미포함 → `next-pwa`류 도입 또는 수동 SW. 도입 시 의존성 ADR 재검토.
+- 디자인 고도화(maskable 전용 아이콘, 스플래시) 필요 시 별도.
