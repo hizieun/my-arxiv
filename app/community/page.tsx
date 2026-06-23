@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { LikeButton } from "@/components/LikeButton";
 import type { PostWithAuthor } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,18 @@ export default async function CommunityPage({
 
   const { data, error } = await query;
   const posts = (data ?? []) as PostWithAuthor[];
+
+  // 좋아요 — 작은 커뮤니티 전제로 전체 한 번 가져와 JS 집계 (카운터 컬럼/뷰 없이)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: likeRows } = await supabase.from("likes").select("post_id, user_id");
+  const likeCount = new Map<string, number>();
+  const myLikes = new Set<string>();
+  for (const row of likeRows ?? []) {
+    likeCount.set(row.post_id, (likeCount.get(row.post_id) ?? 0) + 1);
+    if (user && row.user_id === user.id) myLikes.add(row.post_id);
+  }
 
   return (
     <div>
@@ -89,9 +102,12 @@ export default async function CommunityPage({
                 </p>
               </Link>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-                <span className="font-medium text-[var(--foreground)]">
+                <Link
+                  href={`/u/${post.author?.username ?? ""}`}
+                  className="font-medium text-[var(--foreground)] hover:underline"
+                >
                   @{post.author?.username ?? "알 수 없음"}
-                </span>
+                </Link>
                 <span>·</span>
                 <span>{formatDate(post.created_at)}</span>
                 {post.tags.map((t) => (
@@ -103,6 +119,13 @@ export default async function CommunityPage({
                     #{t}
                   </Link>
                 ))}
+                <span className="ml-auto">
+                  <LikeButton
+                    postId={post.id}
+                    count={likeCount.get(post.id) ?? 0}
+                    liked={myLikes.has(post.id)}
+                  />
+                </span>
               </div>
             </li>
           ))}

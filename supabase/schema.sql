@@ -145,3 +145,31 @@ drop policy if exists "본인 댓글만 삭제" on public.comments;
 create policy "본인 댓글만 삭제"
   on public.comments for delete
   using (auth.uid() = author_id);
+
+-- ─────────────────────────────────────────────
+-- 5. likes : 글 좋아요 (1인 1좋아요 = 복합 PK)
+--    (Phase 5 후속 #2)
+-- ─────────────────────────────────────────────
+create table if not exists public.likes (
+  post_id    uuid not null references public.posts (id) on delete cascade,
+  user_id    uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+alter table public.likes enable row level security;
+
+drop policy if exists "좋아요 공개 조회" on public.likes;
+create policy "좋아요 공개 조회"
+  on public.likes for select
+  using (true);
+
+drop policy if exists "본인 좋아요만 추가" on public.likes;
+create policy "본인 좋아요만 추가"
+  on public.likes for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "본인 좋아요만 취소" on public.likes;
+create policy "본인 좋아요만 취소"
+  on public.likes for delete
+  using (auth.uid() = user_id);

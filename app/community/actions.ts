@@ -104,6 +104,33 @@ export async function addComment(formData: FormData) {
   revalidatePath(`/community/${postId}`);
 }
 
+export async function toggleLike(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const postId = String(formData.get("post_id") ?? "");
+  if (!user) redirect(`/login?next=/community/${postId}`);
+  if (!postId) return;
+
+  // 이미 눌렀으면 취소, 아니면 추가 (토글)
+  const { data: existing } = await supabase
+    .from("likes")
+    .select("post_id")
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase.from("likes").delete().eq("post_id", postId).eq("user_id", user.id);
+  } else {
+    await supabase.from("likes").insert({ post_id: postId, user_id: user.id });
+  }
+
+  revalidatePath("/community");
+  revalidatePath(`/community/${postId}`);
+}
+
 export async function deleteComment(formData: FormData) {
   const supabase = await createClient();
   const {

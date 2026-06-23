@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Markdown } from "@/components/Markdown";
 import { CommentSection } from "@/components/CommentSection";
+import { LikeButton } from "@/components/LikeButton";
 import { deletePost } from "../actions";
 import type { PostWithAuthor, CommentWithAuthor } from "@/lib/types";
 
@@ -47,6 +48,14 @@ export default async function PostDetailPage({
     .order("created_at", { ascending: true });
   const comments = (commentData ?? []) as CommentWithAuthor[];
 
+  // 좋아요 수 + 내가 눌렀는지
+  const { data: likeRows } = await supabase
+    .from("likes")
+    .select("user_id")
+    .eq("post_id", id);
+  const likeCount = likeRows?.length ?? 0;
+  const liked = !!(user && likeRows?.some((r) => r.user_id === user.id));
+
   return (
     <article className="mx-auto max-w-2xl">
       <Link href="/community" className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]">
@@ -56,9 +65,12 @@ export default async function PostDetailPage({
       <h1 className="mb-2 mt-2 text-3xl font-bold tracking-tight">{post.title}</h1>
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
-        <span className="font-medium text-[var(--foreground)]">
+        <Link
+          href={`/u/${post.author?.username ?? ""}`}
+          className="font-medium text-[var(--foreground)] hover:underline"
+        >
           @{post.author?.username ?? "알 수 없음"}
-        </span>
+        </Link>
         <span>·</span>
         <span>{formatDate(post.created_at)}</span>
         {post.updated_at !== post.created_at && <span>(수정됨)</span>}
@@ -97,6 +109,10 @@ export default async function PostDetailPage({
           </form>
         </div>
       )}
+
+      <div className="mt-4">
+        <LikeButton postId={post.id} count={likeCount} liked={liked} />
+      </div>
 
       <hr className="my-6 border-[var(--border)]" />
 
