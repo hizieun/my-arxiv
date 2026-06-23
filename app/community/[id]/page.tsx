@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Markdown } from "@/components/Markdown";
+import { CommentSection } from "@/components/CommentSection";
 import { deletePost } from "../actions";
-import type { PostWithAuthor } from "@/lib/types";
+import type { PostWithAuthor, CommentWithAuthor } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,14 @@ export default async function PostDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
   const isOwner = user?.id === post.author_id;
+
+  // 댓글 (테이블 미생성/오류 시에도 페이지는 깨지지 않도록 [] 폴백)
+  const { data: commentData } = await supabase
+    .from("comments")
+    .select("*, author:profiles(username, avatar_url)")
+    .eq("post_id", id)
+    .order("created_at", { ascending: true });
+  const comments = (commentData ?? []) as CommentWithAuthor[];
 
   return (
     <article className="mx-auto max-w-2xl">
@@ -92,6 +101,8 @@ export default async function PostDetailPage({
       <hr className="my-6 border-[var(--border)]" />
 
       <Markdown>{post.body}</Markdown>
+
+      <CommentSection postId={post.id} comments={comments} currentUserId={user?.id ?? null} />
     </article>
   );
 }

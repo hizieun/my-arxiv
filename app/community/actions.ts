@@ -84,3 +84,43 @@ export async function deletePost(formData: FormData) {
   revalidatePath("/community");
   redirect("/community");
 }
+
+export async function addComment(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const postId = String(formData.get("post_id") ?? "");
+  if (!user) redirect(`/login?next=/community/${postId}`);
+
+  const body = String(formData.get("body") ?? "").trim();
+  if (!postId || !body) return; // 빈 댓글 무시
+
+  const { error } = await supabase
+    .from("comments")
+    .insert({ post_id: postId, author_id: user.id, body });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/community/${postId}`);
+}
+
+export async function deleteComment(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const id = String(formData.get("id") ?? "");
+  const postId = String(formData.get("post_id") ?? "");
+  if (!id) throw new Error("잘못된 요청입니다.");
+
+  const { error } = await supabase
+    .from("comments")
+    .delete()
+    .eq("id", id)
+    .eq("author_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/community/${postId}`);
+}

@@ -44,3 +44,15 @@ export interface Post {
 export interface PostWithAuthor extends Post {
   author: Pick<Profile, "username" | "avatar_url"> | null;
 }
+
+export interface Comment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+}
+
+export interface CommentWithAuthor extends Comment {
+  author: Pick<Profile, "username" | "avatar_url"> | null;
+}

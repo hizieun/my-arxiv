@@ -114,3 +114,34 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ─────────────────────────────────────────────
+-- 4. comments : 글에 달리는 댓글
+--    (Phase 5 후속 #1) — 기존 DB에 추가 시 이 블록만 실행해도 됨
+-- ─────────────────────────────────────────────
+create table if not exists public.comments (
+  id         uuid primary key default gen_random_uuid(),
+  post_id    uuid not null references public.posts (id) on delete cascade,
+  author_id  uuid not null references public.profiles (id) on delete cascade,
+  body       text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists comments_post_id_idx on public.comments (post_id, created_at);
+
+alter table public.comments enable row level security;
+
+drop policy if exists "댓글 공개 조회" on public.comments;
+create policy "댓글 공개 조회"
+  on public.comments for select
+  using (true);
+
+drop policy if exists "로그인 사용자 댓글 작성" on public.comments;
+create policy "로그인 사용자 댓글 작성"
+  on public.comments for insert
+  with check (auth.uid() = author_id);
+
+drop policy if exists "본인 댓글만 삭제" on public.comments;
+create policy "본인 댓글만 삭제"
+  on public.comments for delete
+  using (auth.uid() = author_id);
