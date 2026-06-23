@@ -17,6 +17,13 @@
 
 ---
 
+## 2026-06-23 — Supabase/PostgREST 임베드 모호성 (PGRST201)
+
+**증상:** `likes` 테이블 추가 후 커뮤니티 목록·상세에서 "글을 불러오지 못했어요". posts 쿼리가 PGRST201 반환.
+**원인:** `likes`가 `posts`·`profiles`를 모두 FK 참조 → PostgREST가 보는 `posts→profiles` 경로가 둘(직접 `author_id` / `likes` 경유 m2m)이 되어 `author:profiles(...)` 임베드가 모호해짐.
+**해결:** 임베드에 FK 제약 이름 명시 — `author:profiles!posts_author_id_fkey(...)`.
+**예방/탐지:** 어떤 테이블이든 기존 테이블을 추가로 FK 참조하면 기존 임베드가 모호해질 수 있다. **임베드는 처음부터 `관계!FK이름` 으로 명시**하는 걸 기본으로. 새 참조 테이블 추가 시 기존 `select(... profiles(...) ...)` 쿼리 회귀 점검.
+
 ## 2026-06-18 — arXiv 본문 추출(HTML) + Gemini 503
 
 **배운 점 (요약 본문 기반화):**

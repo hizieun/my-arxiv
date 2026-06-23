@@ -25,9 +25,10 @@ function excerpt(markdown: string, len = 140): string {
 export default async function CommunityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tag?: string }>;
+  searchParams: Promise<{ tag?: string; sort?: string }>;
 }) {
-  const { tag } = await searchParams;
+  const { tag, sort } = await searchParams;
+  const popular = sort === "popular";
   const supabase = await createClient();
 
   let query = supabase
@@ -40,17 +41,55 @@ export default async function CommunityPage({
   const { data, error } = await query;
   const posts = (data ?? []) as PostWithAuthor[];
 
-  // 좋아요 — 작은 커뮤니티 전제로 전체 한 번 가져와 JS 집계 (카운터 컬럼/뷰 없이)
+  // 좋아요·댓글 — 작은 커뮤니티 전제로 전체 한 번 가져와 JS 집계 (카운터 컬럼/뷰 없이)
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { data: likeRows } = await supabase.from("likes").select("post_id, user_id");
+  const [{ data: likeRows }, { data: commentRows }] = await Promise.all([
+    supabase.from("likes").select("post_id, user_id"),
+    supabase.from("comments").select("post_id"),
+  ]);
   const likeCount = new Map<string, number>();
   const myLikes = new Set<string>();
   for (const row of likeRows ?? []) {
     likeCount.set(row.post_id, (likeCount.get(row.post_id) ?? 0) + 1);
     if (user && row.user_id === user.id) myLikes.add(row.post_id);
   }
+  const commentCount = new Map<string, number>();
+  for (const row of commentRows ?? []) {
+    commentCount.set(row.post_id, (commentCount.get(row.post_id) ?? 0) + 1);
+  }
+
+  // 인기순 = 좋아요 desc, 동률은 최신순 (목록은 이미 created_at desc)
+  if (popular) {
+    posts.sort((a, b) => (likeCount.get(b.id) ?? 0) - (likeCount.get(a.id) ?? 0));
+  }
+
+  // "내 글" 바로가기용 username
+  let myUsername: string | null = null;
+  if (user) {
+    const { data: me } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .maybeSingle();
+    myUsername = me?.username ?? null;
+  }
+
+  const tagQS = tag ? `&tag=${encodeURIComponent(tag)}` : "";
+  const sortTab = (label: string, active: boolean, href: string) => (
+    <Link
+      href={href}
+      className={[
+        "rounded-md px-2.5 py-1 text-sm transition-colors",
+        active
+          ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+          : "text-[var(--muted)] hover:text-[var(--foreground)]",
+      ].join(" ")}
+    >
+      {label}
+    </Link>
+  );
 
   return (
     <div>
@@ -61,12 +100,27 @@ export default async function CommunityPage({
             각자 공부한 내용을 마크다운으로 공유하는 공간
           </p>
         </div>
-        <Link
-          href="/community/new"
-          className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-        >
-          ✏️ 글쓰기
-        </Link>
+        <div className="flex items-center gap-2">
+          {myUsername && (
+            <Link
+              href={`/u/${myUsername}`}
+              className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-[var(--accent)]"
+            >
+              내 글
+            </Link>
+          )}
+          <Link
+            href="/community/new"
+            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            ✏️ 글쓰기
+          </Link>
+        </div>
+      </div>
+
+      <div className="mb-4 flex items-center gap-1">
+        {sortTab("최신순", !popular, `/community?sort=latest${tagQS}`)}
+        {sortTab("🔥 인기순", popular, `/community?sort=popular${tagQS}`)}
       </div>
 
       {tag && (
@@ -75,7 +129,10 @@ export default async function CommunityPage({
           <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 font-medium text-[var(--accent)]">
             #{tag}
           </span>
-          <Link href="/community" className="text-[var(--muted)] hover:text-[var(--foreground)]">
+          <Link
+            href={`/community${popular ? "?sort=popular" : ""}`}
+            className="text-[var(--muted)] hover:text-[var(--foreground)]"
+          >
             ✕ 해제
           </Link>
         </div>
@@ -87,7 +144,13 @@ export default async function CommunityPage({
         </p>
       ) : posts.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center text-sm text-[var(--muted)]">
-          아직 글이 없어요. 첫 글을 작성해 보세요!
+          {tag ? (
+            <>
+              <span className="font-medium">#{tag}</span> 태그가 달린 글이 아직 없어요.
+            </>
+          ) : (
+            "아직 글이 없어요. 첫 글을 작성해 보세요!"
+          )}
         </p>
       ) : (
         <ul className="space-y-3">
@@ -120,7 +183,8 @@ export default async function CommunityPage({
                     #{t}
                   </Link>
                 ))}
-                <span className="ml-auto">
+                <span className="ml-auto flex items-center gap-2">
+                  <span aria-label="댓글 수">💬 {commentCount.get(post.id) ?? 0}</span>
                   <LikeButton
                     postId={post.id}
                     count={likeCount.get(post.id) ?? 0}
