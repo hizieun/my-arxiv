@@ -1,6 +1,8 @@
 # my-arxiv
 
-관심있는 AI 분야의 신규 논문을 한 곳에서 탐색하고 관리하는 개인용 디스커버리 웹앱.
+관심있는 AI 분야의 신규 논문을 한 곳에서 탐색·관리하고, **각자 공부한 내용(TIL/학습 글)을 올려 공유하는 커뮤니티** 웹앱.
+
+> 논문 탐색·노트·AI 요약은 **로그인 없이** 브라우저에서 완결되고(localStorage), 커뮤니티 글쓰기만 **로그인**(Supabase)이 필요합니다.
 
 ## 핵심 기능
 
@@ -45,6 +47,14 @@
 - **노트 태그** — 노트 본문에 `#RAG` `#LongContext`처럼 쓰면 자동 인식. 태그 칩으로 필터(빈도순, 대소문자 무시). 마크다운 헤딩(`# 제목`)과는 구분됨
 - 읽음·나중에·노트 저장 시 논문 메타데이터 자동 캐싱 → 풍부한 목록 표시
 
+### 📓 커뮤니티 (`/community`)
+- 각자 공부한 내용을 **마크다운 학습 글(TIL)** 로 작성·공유 (논문에 묶이지 않는 독립 글)
+- 목록(최신순) / 상세(마크다운 렌더, GFM 표·코드블록) / 작성·수정·삭제
+- **태그** — 글에 태그를 달아 `?tag=` 로 필터
+- 작성 시 **미리보기 토글**(편집 ↔ 마크다운 렌더)
+- **GitHub OAuth 로그인** (Supabase Auth). 비로그인은 읽기만, 글쓰기/수정/삭제는 로그인 필요
+- 권한은 **RLS(Row Level Security)** 로 DB에서 강제 — 누구나 읽기, **본인 글만** 수정·삭제
+
 ### 🔥 인기도 신호
 - HuggingFace Daily Papers의 `upvotes`를 popularity로 사용
 - 카드 배지:
@@ -53,10 +63,10 @@
   - `🔥 N` (rose) — upvote 10+ (핫함)
 
 ### 💾 데이터 저장
-- 모든 사용자 상태는 브라우저 스토리지 (서버 측 데이터 저장소 없음)
+- **개인 상태 = 브라우저 스토리지** (논문 탐색은 서버 불필요, 본인 브라우저에만 쌓임)
   - `localStorage` — 카테고리 / 읽음 / 나중에 / 노트 / 메타 / 요약 캐시
   - `sessionStorage` — 피드 캐시 (탭 단위)
-- Vercel 배포해도 본인 브라우저에만 데이터가 쌓임
+- **커뮤니티 = Supabase(Postgres)** — 학습 글·프로필은 서버 DB에 저장, RLS로 권한 강제
 
 ## 카테고리 (현재 지원)
 
@@ -75,19 +85,40 @@
   - arXiv Atom XML API (외부 XML 파서 없이 정규식 파싱)
   - HuggingFace `daily_papers` + `papers/search` API
 - **AI 요약**: Google Gemini 2.5 Flash (`@google/genai`)
-- **상태**: localStorage / sessionStorage (v1) → 추후 SQLite 마이그레이션 검토
+- **커뮤니티**: Supabase (Postgres + Auth, `@supabase/ssr`) · GitHub OAuth · RLS
+- **마크다운**: `react-markdown` + `remark-gfm`
+- **상태**: 개인용은 localStorage / sessionStorage, 커뮤니티는 Supabase Postgres
 
 ## 실행
 
 ```bash
 npm install
 
-# AI 요약 기능을 쓰려면 Gemini API 키 필요 (없어도 나머지 기능은 동작)
-echo "GOOGLE_API_KEY=발급받은_키" > .env.local
-
+# .env.local 에 키 추가 (아래 항목 참고)
 npm run dev
 # → http://localhost:3000
 ```
+
+### 환경변수 (`.env.local`)
+
+```bash
+# AI 요약 (없어도 논문 탐색·노트는 동작)
+GOOGLE_API_KEY=발급받은_키
+
+# 커뮤니티 (없으면 /community 가 "불러오지 못했어요"로 표시, 나머지 기능은 정상)
+NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key>
+```
+
+### 커뮤니티(Supabase) 1회 세팅
+
+1. [supabase.com](https://supabase.com)에서 프로젝트 생성 → **Project URL**, **anon public key** 확보 (위 환경변수).
+2. Supabase **SQL Editor**에 [`supabase/schema.sql`](./supabase/schema.sql)을 붙여 실행 (테이블·RLS·트리거 생성).
+3. **GitHub OAuth** 설정:
+   - GitHub → Settings → Developer settings → **OAuth Apps**에서 앱 생성. Authorization callback URL: `https://<project>.supabase.co/auth/v1/callback`
+   - 발급된 Client ID/Secret을 Supabase **Authentication → Providers → GitHub**에 입력·활성화.
+   - *대안: OAuth 앱이 번거로우면 매직링크(이메일 OTP)로 `app/login/page.tsx`를 스왑 가능.*
+4. `npm run dev` → `/login`에서 로그인 → `/community`에서 글 작성.
 
 `GOOGLE_API_KEY`는 [Google AI Studio](https://aistudio.google.com/apikey)에서 무료로 발급.
 > ⚠️ 일부 계정에서 `gemini-2.0-flash`는 무료 티어 quota가 `limit: 0`으로 잡힘 →
@@ -105,25 +136,39 @@ npx tsc --noEmit  # 타입 체크
 ## 배포
 
 Vercel 권장. `vercel.com/new`에서 GitHub repo 연결 → Deploy.
-AI 요약을 쓰려면 Vercel 프로젝트 **Settings → Environment Variables**에 `GOOGLE_API_KEY` 추가.
+Vercel 프로젝트 **Settings → Environment Variables**에 `GOOGLE_API_KEY`(AI 요약), `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`(커뮤니티) 추가.
+> 배포 도메인을 GitHub OAuth App의 callback/홈 URL과 Supabase Auth **Redirect URLs**에도 등록해야 로그인이 동작합니다.
 
 ## 디렉토리
 
 ```
+proxy.ts                       # Next 16 Proxy(구 미들웨어) — Supabase 세션 갱신
+supabase/
+  schema.sql                   # 커뮤니티 DB 스키마 + RLS + 트리거 (SQL Editor에 실행)
 app/
   page.tsx                     # 피드 (점진적 로딩 + 캐시)
   search/page.tsx              # 검색
   categories/page.tsx          # 카테고리 설정
   notes/page.tsx               # 노트 / 나중에 / 읽음
   paper/[source]/[id]/page.tsx # 논문 상세 + AI 요약
+  login/page.tsx               # GitHub OAuth 로그인
+  auth/callback/route.ts       # OAuth 코드 → 세션 교환
+  community/
+    page.tsx                   # 학습 글 목록 (+ ?tag= 필터)
+    new/page.tsx               # 글 작성 (로그인 필수)
+    [id]/page.tsx              # 글 상세 (마크다운 렌더)
+    [id]/edit/page.tsx         # 글 수정 (본인만)
+    actions.ts                 # 서버 액션 create/update/delete
   api/
     feed/route.ts              # arXiv + HF 통합 피드 (?source=arxiv|hf 분리 호출)
     search/route.ts            # 통합 검색
     paper/[source]/[id]/route.ts # 단건 lookup
     summary/route.ts           # Gemini 한국어 요약
 components/
-  NavBar.tsx
+  NavBar.tsx                   # 네비 + 인증 상태(@username/로그아웃)
   PaperCard.tsx                # 인기/Daily 배지, 읽음/나중에/노트 토글
+  Markdown.tsx                 # react-markdown + remark-gfm 렌더
+  PostForm.tsx                 # 글 작성/수정 폼 (미리보기 토글)
 lib/
   arxiv.ts                     # arXiv 어댑터 (Atom XML 파서)
   huggingface.ts               # HF daily + search + 단건 어댑터
@@ -132,7 +177,8 @@ lib/
   tags.ts                      # 노트 #태그 파서 (인라인 추출 + 집계)
   categories.ts                # 카테고리 데이터
   storage.ts                   # localStorage/sessionStorage 헬퍼 + useSyncExternalStore 훅
-  types.ts                     # Paper, ArxivCategory 등
+  supabase/                    # client/server/middleware(=proxy 헬퍼)
+  types.ts                     # Paper, Post, Profile, ArxivCategory 등
 ```
 
 ## 로드맵
@@ -154,7 +200,11 @@ HuggingFace daily/search 어댑터, 통합 검색 페이지
 - ⬜ 키보드 단축키 (`j/k`, `r`, `n`, `Cmd+K`)
 - 🔶 PWA — 1차 설치 가능(manifest + 코드 생성 아이콘 + standalone) ✅ / 오프라인 캐시(서비스워커) 2차 ⬜
 
-### Phase 5+ — 후보
+### Phase 5 — 커뮤니티 1차 ✅ (코드 완성, Supabase 세팅 후 가동)
+학습 글(TIL) 공유 — Supabase(Postgres+Auth+RLS), GitHub OAuth, 글 CRUD + 태그, 마크다운 렌더.
+후속 후보: 댓글 / 좋아요 / 프로필 페이지 / 논문 상세→글쓰기 연결.
+
+### Phase 6+ — 후보
 - 논문 Q&A (abstract 기반 자유 질문)
 - 키워드 기반 매일 아침 자동 큐레이션 (에이전트)
 - SQLite + 로그인 → 멀티 디바이스 동기화

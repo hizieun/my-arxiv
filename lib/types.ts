@@ -20,3 +20,27 @@ export interface ArxivCategory {
   name: string;
   group: string;
 }
+
+// ── 커뮤니티 (Supabase) ──
+
+export interface Profile {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+export interface Post {
+  id: string;
+  author_id: string;
+  title: string;
+  body: string; // 마크다운 원문
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+// 목록/상세에서 작성자 프로필을 join 해서 함께 가져온 형태
+export interface PostWithAuthor extends Post {
+  author: Pick<Profile, "username" | "avatar_url"> | null;
+}

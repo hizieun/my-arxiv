@@ -1,10 +1,10 @@
 # STATUS
 
-**마지막 업데이트:** 2026-06-04
+**마지막 업데이트:** 2026-06-23
 
 ## 한 줄
 
-PWA 1차 — 홈 화면 설치 가능(manifest + 코드 생성 아이콘 + standalone). 오프라인 캐시(서비스워커)는 2차. 직전: 본문 요약 응답시간 단축.
+**Phase 5 커뮤니티 1차 — 코드 완성.** 1인용 → 학습 글(TIL) 공유 커뮤니티로 피벗. Supabase(Postgres+Auth+RLS) 도입, GitHub OAuth 로그인, 글 CRUD+태그. tsc/lint/build 통과. **남은 건 사용자의 Supabase 프로젝트 세팅(아래 다음 액션).**
 
 ## 이번 주 목표
 
@@ -25,6 +25,19 @@ PWA 1차 — 홈 화면 설치 가능(manifest + 코드 생성 아이콘 + stand
 
 ## 직전 작업
 
+**Phase 5 커뮤니티 1차 (코드 완성, 2026-06-23).** ADR: `docs/decisions.md` (2026-06-23) 2건(Supabase 피벗 / react-markdown).
+
+- 의존성: `@supabase/supabase-js`, `@supabase/ssr`, `react-markdown`, `remark-gfm`.
+- Supabase 레이어: `lib/supabase/{client,server,middleware}.ts` + 루트 `proxy.ts`(Next 16에서 middleware→**proxy** 리네임 확인, `proxy` export + matcher로 세션 갱신).
+- DB: `supabase/schema.sql` — `profiles`/`posts`, RLS(누구나 읽기·본인 글만 수정/삭제), 가입 시 프로필 자동생성 트리거(GitHub `user_name`/`avatar_url` 시드), `updated_at` 트리거.
+- 인증: `app/auth/callback/route.ts`(코드→세션 교환), `app/login/page.tsx`(GitHub OAuth, `useSearchParams`는 Suspense로 감쌈), `NavBar`에 인증 상태(@username/로그아웃) + Community 링크.
+- 글 CRUD: `app/community/`(목록·new·[id]·[id]/edit) + `actions.ts`(create/update/delete, 서버에서 `author_id` 재확인 이중 방어) + `components/{Markdown,PostForm}.tsx`(미리보기 토글).
+- 기존 arXiv/노트/요약/PWA는 **무변경** (localStorage 그대로).
+
+검증: `tsc --noEmit` OK, `lint` OK, `next build` OK(커뮤니티 라우트 4 + auth 콜백 + Proxy 등록 확인). **단, 인증·CRUD·RLS 실동작은 사용자 Supabase 프로젝트 필요 → 미검증.**
+
+<details><summary>이전: PWA 1차 — 홈 화면 설치 가능</summary>
+
 **PWA 1차 — 홈 화면 설치 가능.** ADR: `docs/decisions.md` (2026-06-18). vision의 "PWA 설치 가능하게" 목표, roadmap 7월 테마.
 
 - `app/icon.tsx`(512)·`app/apple-icon.tsx`(180) — `ImageResponse`(next/og)로 아이콘 **코드 생성** (accent #2563eb 배경 + 📚). 외부 PNG 자산·도구 불필요.
@@ -32,6 +45,8 @@ PWA 1차 — 홈 화면 설치 가능(manifest + 코드 생성 아이콘 + stand
 - `app/layout.tsx` — `viewport.themeColor`(Next 16은 metadata→viewport 이동) + `metadata.appleWebApp`.
 
 검증(브라우저): manifest.webmanifest 200(application/manifest+json), /icon·/apple-icon PNG 생성·📚 렌더 확인, head에 manifest·apple-touch-icon·theme-color·web-app-capable 자동 주입. localhost secure context로 설치 조건 충족. tsc/lint 통과.
+
+</details>
 
 <details><summary>이전: 본문 요약 응답시간 단축 (9dfbaba)</summary>
 
@@ -90,9 +105,13 @@ ADR: `docs/decisions.md` (2026-06-03). `getLaterSet`/`toggleLater` 추가, unrea
 
 ## 다음 액션
 
-### Must
+### Must — 커뮤니티 가동을 위한 사용자 액션 (코드만으론 불가)
 
-- 없음 (Phase 4 #1·#2 완료)
+1. **Supabase 프로젝트 생성** → `Project URL` + `anon public key` 확보.
+2. **스키마 적용** — `supabase/schema.sql`을 Supabase **SQL Editor**에 붙여 실행.
+3. **GitHub OAuth 설정** — GitHub OAuth App 생성 → Client ID/Secret을 Supabase Auth Providers → GitHub에 입력. 콜백 URL `https://<project>.supabase.co/auth/v1/callback`. (매직링크 선호 시 `app/login/page.tsx` 스왑)
+4. **환경변수** — `.env.local`(로컬) + Vercel Settings(배포)에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` 추가.
+5. 그 후 `npm run dev`로 `/login`→로그인→`/community` 글 CRUD·RLS 실동작 검증.
 
 ### Should
 
@@ -111,6 +130,9 @@ ADR: `docs/decisions.md` (2026-06-03). `getLaterSet`/`toggleLater` 추가, unrea
 
 ## 결정 대기 중
 
+- **커뮤니티 후속 범위** — 댓글 / 좋아요 / 프로필 페이지(`/u/[username]`) / 논문 상세→글쓰기 연결 중 우선순위.
+- **인증 방식 확정** — GitHub OAuth(현재) vs 매직링크. OAuth 앱 세팅 부담되면 매직링크로 스왑.
+- **공개 오픈 커뮤니티 여부** — 소규모 검증 후 결정(모더레이션·스팸 대응 필요해짐).
 - **PWA 2차 도입 여부** — 서비스워커(오프라인). `next-pwa` 의존성 vs 수동 SW.
 - **남은 Phase 4 후보 우선순위** (키보드 단축키 / 논문 Q&A)
 - **영어 UI 지원 시점** — vision에 "한국어 우선, 영어는 후순위"로 명시. 도입 시점은 미정.
