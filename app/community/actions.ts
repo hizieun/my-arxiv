@@ -129,6 +129,8 @@ export async function toggleLike(formData: FormData) {
 
   revalidatePath("/community");
   revalidatePath(`/community/${postId}`);
+  const from = String(formData.get("from") ?? "");
+  if (from) revalidatePath(from);
 }
 
 export async function deleteComment(formData: FormData) {
