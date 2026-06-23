@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-**Phase 5 커뮤니티 1차 — 코드 완성.** 1인용 → 학습 글(TIL) 공유 커뮤니티로 피벗. Supabase(Postgres+Auth+RLS) 도입, GitHub OAuth 로그인, 글 CRUD+태그. tsc/lint/build 통과. **남은 건 사용자의 Supabase 프로젝트 세팅(아래 다음 액션).**
+**Phase 5 커뮤니티 후속 #1~#4 코드 완성.** 댓글 / 좋아요 / 프로필 페이지(`/u/[username]`) / 논문 상세→글쓰기 연결. tsc·lint·build 통과, 기능별 커밋. **배포 전 사용자 액션: comments·likes 테이블 SQL 실행(`supabase/schema.sql` 4·5번 블록).**
 
 ## 이번 주 목표
 
@@ -25,6 +25,17 @@
 
 ## 직전 작업
 
+**Phase 5 커뮤니티 후속 #1~#4 (2026-06-23).** 기능별 커밋(82166a0 댓글 / f5e12fe 좋아요 / bfad5cb 프로필 / 9e9b849 논문연결).
+
+- **#1 댓글** — `comments` 테이블+RLS(누구나 읽기·로그인 작성·본인 삭제). 상세 페이지에 목록+작성폼(서버액션), 테이블 없어도 `[]` 폴백. `addComment`/`deleteComment`.
+- **#2 좋아요** — `likes`(복합 PK 1인1좋아요)+RLS. `toggleLike` 서버액션, `LikeButton`(서버액션 폼, ♥/♡+카운트). 작은 커뮤니티 전제로 likes 전체 1회 조회 후 JS 집계(카운터 컬럼/뷰/트리거 없음 — 과설계 회피).
+- **#3 프로필** — `/u/[username]`. 아바타/가입일/글수+글목록. 작성자명 클릭 시 이동. `LikeButton`에 `from` prop 추가해 토글 후 현재 경로도 revalidate.
+- **#4 논문→글쓰기** — 논문 상세 "✍️ 이 논문으로 학습 글 쓰기" → `/community/new?title=&body=&tags=` 프리필. new 페이지가 searchParams 받아 PostForm initial 시드. (테이블 변경 없음)
+
+검증: tsc/lint/build 모두 통과. **DB: `comments`/`likes` 테이블은 사용자가 `supabase/schema.sql` 재실행(또는 4·5번 블록만) 필요.** 미실행 상태에선 댓글=빈목록, 좋아요=0으로 graceful 동작.
+
+<details><summary>이전: Phase 5 커뮤니티 1차 (코드 완성, 2026-06-23)</summary>
+
 **Phase 5 커뮤니티 1차 (코드 완성, 2026-06-23).** ADR: `docs/decisions.md` (2026-06-23) 2건(Supabase 피벗 / react-markdown).
 
 - 의존성: `@supabase/supabase-js`, `@supabase/ssr`, `react-markdown`, `remark-gfm`.
@@ -34,7 +45,9 @@
 - 글 CRUD: `app/community/`(목록·new·[id]·[id]/edit) + `actions.ts`(create/update/delete, 서버에서 `author_id` 재확인 이중 방어) + `components/{Markdown,PostForm}.tsx`(미리보기 토글).
 - 기존 arXiv/노트/요약/PWA는 **무변경** (localStorage 그대로).
 
-검증: `tsc --noEmit` OK, `lint` OK, `next build` OK(커뮤니티 라우트 4 + auth 콜백 + Proxy 등록 확인). **단, 인증·CRUD·RLS 실동작은 사용자 Supabase 프로젝트 필요 → 미검증.**
+검증: `tsc --noEmit` OK, `lint` OK, `next build` OK(커뮤니티 라우트 4 + auth 콜백 + Proxy 등록 확인). 배포·로그인·글 작성까지 프로덕션 end-to-end 확인 완료(https://my-arxiv.vercel.app).
+
+</details>
 
 <details><summary>이전: PWA 1차 — 홈 화면 설치 가능</summary>
 
@@ -105,13 +118,15 @@ ADR: `docs/decisions.md` (2026-06-03). `getLaterSet`/`toggleLater` 추가, unrea
 
 ## 다음 액션
 
-### Must — 커뮤니티 가동을 위한 사용자 액션 (코드만으론 불가)
+### Must — 후속 #1·#2 가동을 위한 사용자 액션 (코드만으론 불가)
 
-1. **Supabase 프로젝트 생성** → `Project URL` + `anon public key` 확보.
-2. **스키마 적용** — `supabase/schema.sql`을 Supabase **SQL Editor**에 붙여 실행.
-3. **GitHub OAuth 설정** — GitHub OAuth App 생성 → Client ID/Secret을 Supabase Auth Providers → GitHub에 입력. 콜백 URL `https://<project>.supabase.co/auth/v1/callback`. (매직링크 선호 시 `app/login/page.tsx` 스왑)
-4. **환경변수** — `.env.local`(로컬) + Vercel Settings(배포)에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` 추가.
-5. 그 후 `npm run dev`로 `/login`→로그인→`/community` 글 CRUD·RLS 실동작 검증.
+1. **comments·likes 테이블 생성** — `supabase/schema.sql`의 4(comments)·5(likes) 블록을 Supabase **SQL Editor**에 실행(전체 재실행도 안전, 멱등). 미실행 시 댓글=빈목록·좋아요=0으로 graceful 동작하지만 작성/토글은 실패.
+2. 그 후 댓글 작성·좋아요 토글·프로필 페이지 실동작 확인.
+
+<details><summary>완료: 커뮤니티 1차 가동 (Supabase 세팅)</summary>
+
+Supabase 프로젝트 생성·스키마 적용·GitHub OAuth·환경변수(로컬+Vercel) 완료. 로그인→글 작성 프로덕션 end-to-end 검증됨.
+</details>
 
 ### Should
 
