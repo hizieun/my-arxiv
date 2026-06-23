@@ -291,6 +291,16 @@ function PaperDetailView({ paper }: { paper: Paper }) {
         >
           원문 ↗
         </a>
+        <Link
+          href={`/community/new?${new URLSearchParams({
+            title: paper.title,
+            body: `> 📄 관련 논문: [${paper.title}](${paper.htmlUrl})\n\n`,
+            tags: "논문리뷰",
+          }).toString()}`}
+          className="ml-auto rounded-md bg-[var(--accent)] px-3 py-1.5 font-medium text-white hover:opacity-90"
+        >
+          ✍️ 이 논문으로 학습 글 쓰기
+        </Link>
       </div>
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
