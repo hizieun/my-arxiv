@@ -29,7 +29,8 @@ export default async function PostDetailPage({
 
   const { data } = await supabase
     .from("posts")
-    .select("*, author:profiles(username, avatar_url)")
+    // likes 추가로 posts→profiles 경로가 둘이 되어 FK 이름 명시 (PGRST201 해소)
+    .select("*, author:profiles!posts_author_id_fkey(username, avatar_url)")
     .eq("id", id)
     .single();
   if (!data) notFound();
