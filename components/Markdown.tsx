@@ -18,6 +18,8 @@ export function Markdown({ children }: { children: string }) {
           ul: (p) => <ul className="list-disc space-y-1 pl-6" {...p} />,
           ol: (p) => <ol className="list-decimal space-y-1 pl-6" {...p} />,
           a: (p) => <a className="text-[var(--accent)] underline" {...p} />,
+          // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+          img: (p) => <img className="my-2 max-w-full rounded-lg border border-[var(--border)]" {...p} />,
           blockquote: (p) => (
             <blockquote className="border-l-4 border-[var(--border)] pl-4 text-[var(--muted)]" {...p} />
           ),
