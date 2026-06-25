@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PaperCard } from "@/components/PaperCard";
+import { useFeedKeyboard } from "@/lib/useFeedKeyboard";
 import { dedupAndSort } from "@/lib/aggregator";
 import { DEFAULT_SELECTED_CATEGORIES } from "@/lib/categories";
 import { getFeedCache, setFeedCache, useCategories, useHydrated } from "@/lib/storage";
@@ -122,6 +123,9 @@ export default function FeedPage() {
   const bothError = arxivState === "error" && hfState === "error";
   const initialLoad = anyLoading && papers.length === 0;
 
+  // 키보드 내비게이션 (j/k 이동, Enter/o 열기)
+  const selectedIdx = useFeedKeyboard(filtered.length);
+
   return (
     <div>
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -196,9 +200,17 @@ export default function FeedPage() {
         />
       )}
 
+      {filtered.length > 0 && (
+        <p className="mb-2 hidden text-right text-xs text-[var(--muted)] sm:block">
+          ⌨ <kbd className="font-mono">j</kbd>/<kbd className="font-mono">k</kbd> 이동 ·{" "}
+          <kbd className="font-mono">Enter</kbd> 열기
+        </p>
+      )}
       <div className="grid gap-3">
-        {filtered.map((p) => (
-          <PaperCard key={p.id} paper={p} />
+        {filtered.map((p, i) => (
+          <div key={p.id} data-feed-item={i}>
+            <PaperCard paper={p} selected={i === selectedIdx} />
+          </div>
         ))}
       </div>
     </div>

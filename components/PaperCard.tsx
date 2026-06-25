@@ -7,6 +7,7 @@ import { rememberPaper, setNote, toggleLater, toggleRead, useLaterSet, useNotes,
 
 interface Props {
   paper: Paper;
+  selected?: boolean;
 }
 
 const SOURCE_LABEL: Record<Paper["source"], string> = {
@@ -15,7 +16,7 @@ const SOURCE_LABEL: Record<Paper["source"], string> = {
   paperswithcode: "PwC",
 };
 
-export function PaperCard({ paper }: Props) {
+export function PaperCard({ paper, selected }: Props) {
   const read = useReadSet().has(paper.id);
   const later = useLaterSet().has(paper.id);
   const savedNote = useNotes()[paper.id]?.body ?? "";
@@ -69,7 +70,8 @@ export function PaperCard({ paper }: Props) {
   return (
     <article
       className={[
-        "rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 transition-opacity",
+        "rounded-xl border bg-[var(--card)] p-5 transition-all",
+        selected ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/40" : "border-[var(--border)]",
         read ? "opacity-60" : "",
       ].join(" ")}
     >
