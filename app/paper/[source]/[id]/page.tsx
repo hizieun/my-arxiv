@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import type { Paper, PaperSource } from "@/lib/types";
+import { PaperQA } from "@/components/PaperQA";
 import {
   getNotes,
   getSummaries,
@@ -247,6 +248,8 @@ function PaperDetailView({ paper }: { paper: Paper }) {
           <p className="text-sm text-[var(--muted)]">버튼을 눌러 한국어 핵심 요약을 생성합니다.</p>
         )}
       </section>
+
+      <PaperQA paperId={paper.id} title={paper.title} abstract={paper.abstract} />
 
       <div className="flex flex-wrap gap-2 text-xs">
         <button

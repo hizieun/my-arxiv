@@ -57,25 +57,18 @@ ${abstract}
 ${fulltext}`;
 }
 
-interface SummarizeInput {
-  title: string;
-  abstract: string;
-  fulltext?: string | null;
+interface GenConfig {
+  thinkingBudget: number;
+  maxOutputTokens: number;
 }
 
-// fulltext가 주어지면 본문 기반 심층 요약, 없으면 abstract 기반 요약.
-export async function summarizePaper({ title, abstract, fulltext }: SummarizeInput): Promise<string> {
+// gemini-2.5-flash 호출 + 503/과부하 등 일시 오류 백오프 재시도(1s→2s, 3회).
+// (429/quota·키 오류는 재시도 무의미라 즉시 throw — 호출부에서 메시지 분기)
+async function generateWithRetry(prompt: string, config: GenConfig): Promise<string> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_API_KEY not configured");
 
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = fulltext
-    ? buildFulltextPrompt(title, abstract, fulltext)
-    : buildAbstractPrompt(title, abstract);
-
-  // thinkingBudget을 제한해 응답 시간을 통제(무제한 동적 thinking은 본문 요약에서
-  // 30s+까지 늘어나 Vercel 함수 타임아웃·UX 문제). 2048이면 구조화엔 충분.
-  // maxOutputTokens로 출력 폭주도 방지. 503/과부하는 짧게 재시도.
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -83,8 +76,8 @@ export async function summarizePaper({ title, abstract, fulltext }: SummarizeInp
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
-          thinkingConfig: { thinkingBudget: 2048 },
-          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingBudget: config.thinkingBudget },
+          maxOutputTokens: config.maxOutputTokens,
         },
       });
       return response.text ?? "";
@@ -96,4 +89,57 @@ export async function summarizePaper({ title, abstract, fulltext }: SummarizeInp
     }
   }
   throw new Error("Gemini: no response"); // 도달 불가 (루프가 반환/throw)
+}
+
+interface SummarizeInput {
+  title: string;
+  abstract: string;
+  fulltext?: string | null;
+}
+
+// fulltext가 주어지면 본문 기반 심층 요약, 없으면 abstract 기반 요약.
+// thinkingBudget을 제한해 응답 시간을 통제(무제한 동적 thinking은 본문 요약에서
+// 30s+까지 늘어나 Vercel 함수 타임아웃·UX 문제). 2048이면 구조화엔 충분.
+export async function summarizePaper({ title, abstract, fulltext }: SummarizeInput): Promise<string> {
+  const prompt = fulltext
+    ? buildFulltextPrompt(title, abstract, fulltext)
+    : buildAbstractPrompt(title, abstract);
+  return generateWithRetry(prompt, { thinkingBudget: 2048, maxOutputTokens: 4096 });
+}
+
+function buildQaPrompt(
+  title: string,
+  abstract: string,
+  fulltext: string | null,
+  question: string,
+): string {
+  const source = fulltext
+    ? `Abstract:\n${abstract}\n\n본문 전문:\n${fulltext}`
+    : `Abstract:\n${abstract}`;
+  return `당신은 아래 AI/ML 논문의 내용을 바탕으로 사용자의 질문에 한국어로 답하는 조수입니다.
+
+답변 규칙:
+- 반드시 아래 논문 내용에 **근거해서만** 답하세요. 논문에 없는 내용은 지어내지 말고 "이 논문에는 명시되어 있지 않습니다"라고 답하세요.
+- 간결하고 정확하게. 관련 수치·방법이 있으면 인용하세요.
+- 전문 용어는 처음 나올 때 괄호로 짧게 풀이. 예: RAG(검색 증강 생성).
+- 마크다운 기호는 최소화하고 자연스러운 문장으로.
+
+제목: ${title}
+
+${source}
+
+질문: ${question}`;
+}
+
+interface AnswerInput {
+  title: string;
+  abstract: string;
+  fulltext?: string | null;
+  question: string;
+}
+
+// 논문(본문 또는 abstract) 근거로 자유 질문에 답한다.
+export async function answerQuestion({ title, abstract, fulltext, question }: AnswerInput): Promise<string> {
+  const prompt = buildQaPrompt(title, abstract, fulltext ?? null, question);
+  return generateWithRetry(prompt, { thinkingBudget: 1024, maxOutputTokens: 2048 });
 }
