@@ -13,6 +13,7 @@
 - **sessionStorage 캐시** — 같은 카테고리 재방문 시 캐시에서 즉시 표시 후 백그라운드 갱신
 - 정렬: **최신순 / 🔥 인기순** 토글
 - 기간 필터: 이번 주 / 최근 30일 / 전체
+- **키보드 단축키** — `j`/`k` 카드 이동, `Enter`/`o` 상세 열기
 
 ### 🏷️ 카테고리 설정 (`/categories`)
 - arXiv 카테고리를 그룹으로 묶어 토글 (`Core AI`, `Applications`, `Statistics`, **`Bio + Neuroscience`**)
@@ -40,6 +41,11 @@
 - "💾 캐시됨 · 날짜시각" 메타 + "↺ 재생성" 버튼
 - `GOOGLE_API_KEY` 환경변수 필요 (아래 [실행](#실행) 참고)
 
+### 💬 논문 Q&A
+- 논문 상세에서 본문(또는 abstract) 근거로 **자유 질문** → Gemini 한국어 답변
+- 요약과 같은 인프라 재활용 (`arxiv.org/html` 본문 → 없으면 abstract 폴백, 📄 본문 기반 배지)
+- 논문에 없는 내용은 지어내지 않도록 프롬프트 가드. 세션 단위 Q&A 히스토리
+
 ### 📝 노트 & 읽기 상태 (`/notes`)
 - 읽기 상태 3단계: **안읽음 / 🔖 나중에 / ✓ 읽음** (상호배타)
 - 탭 필터: 노트 / 🔖 나중에 / 읽음 / 전체
@@ -53,7 +59,8 @@
 - **태그** — 글에 태그를 달아 `?tag=` 로 필터
 - 작성 시 **미리보기 토글**(편집 ↔ 마크다운 렌더)
 - **💬 댓글** — 글마다 댓글 (로그인 작성, 본인 댓글만 삭제)
-- **♥ 좋아요** — 글 목록·상세·프로필에서 토글 (1인 1좋아요)
+- **♥ 좋아요** — 글 목록·상세·프로필에서 토글 (1인 1좋아요), 🔥 인기순 정렬
+- **🖼 이미지 업로드** — 글 작성 시 스크린샷·다이어그램을 Supabase Storage에 올려 본문에 삽입
 - **👤 프로필** (`/u/[username]`) — 작성자명 클릭 시 그 사람의 글 모아보기
 - **논문 → 글쓰기** — 논문 상세의 "✍️ 이 논문으로 학습 글 쓰기"로 제목·본문(논문 링크)·태그 프리필
 - **GitHub OAuth 로그인** (Supabase Auth). 비로그인은 읽기만, 작성·수정·삭제·좋아요는 로그인 필요
@@ -117,7 +124,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key>
 ### 커뮤니티(Supabase) 1회 세팅
 
 1. [supabase.com](https://supabase.com)에서 프로젝트 생성 → **Project URL**, **anon public key** 확보 (위 환경변수).
-2. Supabase **SQL Editor**에 [`supabase/schema.sql`](./supabase/schema.sql)을 붙여 실행 (테이블·RLS·트리거 생성).
+2. Supabase **SQL Editor**에 [`supabase/schema.sql`](./supabase/schema.sql) 실행 (테이블·RLS·트리거). 이미지 업로드까지 쓰려면 [`supabase/storage.sql`](./supabase/storage.sql)도 실행 (Storage 버킷·정책).
 3. **GitHub OAuth** 설정:
    - GitHub → Settings → Developer settings → **OAuth Apps**에서 앱 생성. Authorization callback URL: `https://<project>.supabase.co/auth/v1/callback`
    - 발급된 Client ID/Secret을 Supabase **Authentication → Providers → GitHub**에 입력·활성화.
@@ -206,10 +213,14 @@ HuggingFace daily/search 어댑터, 통합 검색 페이지
 
 ### Phase 5 — 커뮤니티 ✅
 학습 글(TIL) 공유 — Supabase(Postgres+Auth+RLS), GitHub OAuth, 글 CRUD + 태그, 마크다운 렌더.
-후속 #1~#4 완료: 💬 댓글 / ♥ 좋아요 / 👤 프로필 페이지(`/u/[username]`) / 논문 상세→글쓰기 연결.
+후속 완료: 💬 댓글 / ♥ 좋아요·인기순 / 👤 프로필(`/u/[username]`) / 논문→글쓰기 / 🖼 이미지 업로드.
 
-### Phase 6+ — 후보
-- 논문 Q&A (abstract 기반 자유 질문)
+### Phase 6 — AI·UX 강화 ✅(일부)
+- ✅ 논문 Q&A (본문/abstract 기반 자유 질문, Gemini)
+- ✅ 피드 키보드 단축키 (j/k, Enter)
+- ⬜ PWA 오프라인 2차 (서비스워커) — 의존성 결정(ADR) 선행, 보류 중
+
+### Phase 7+ — 후보
 - 키워드 기반 매일 아침 자동 큐레이션 (에이전트)
 - SQLite + 로그인 → 멀티 디바이스 동기화
 - PDF 인라인 뷰어
