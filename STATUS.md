@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-**Q&A 답변 캐싱 + PWA 오프라인 2차(수동 SW) 완성.** tsc·lint·build 통과, 기능별 커밋·배포. 오프라인 동작은 기기/DevTools(Offline) 수동 점검만 남음.
+**UX/UI 정제 라운드 완료** (NavBar 반응형·삭제 확인·제출 pending·상대 시각). 직전: Q&A 캐싱 + PWA 오프라인 2차. tsc·lint·build 통과, 배포.
 
 ## 이번 주 목표
 
@@ -25,12 +25,26 @@
 
 ## 직전 작업
 
+**UX/UI 정제 (2026-06-26, `3b1c620`).** 기획자 관점 점검 후 우선순위(1>2>3>4)대로.
+
+- **NavBar 반응형** — 브랜드/인증 고정 + 링크 가로 스크롤(스크롤바 숨김)로 모바일 오버플로우 해소.
+- **삭제 확인** — `ConfirmButton`(client): 글/댓글 삭제 전 `window.confirm`.
+- **제출 pending** — `SubmitButton`/`ConfirmButton`이 `useFormStatus`로 제출 중 비활성+문구(중복 제출 방지). 글쓰기·수정·댓글·삭제 적용.
+- **상대 시각** — `lib/time.ts` `timeAgo`/`absoluteTime`. 커뮤니티 목록·상세·프로필·노트·댓글에 "N일 전"(title=절대시각).
+- 보류(P3): focus-visible 링, 좋아요 옵티미스틱, 칩 스타일 통일.
+
+검증: tsc/lint/build 통과.
+
+<details><summary>이전: Q&A 캐싱 + PWA 오프라인 2차 (2026-06-26)</summary>
+
 **Q&A 캐싱 + PWA 오프라인 2차 (2026-06-26).** 우선순위: Q&A 캐싱(퀵윈) > PWA(큰 돌), 댓글 가중치·알림 보류. 커밋 3900614 / ece122f.
 
 - **① Q&A 캐싱** — `lib/storage.ts` `getQA`/`saveQA`+`QAEntry`(요약 캐시와 동일 패턴). PaperQA lazy init 시드(재방문 즉시), 답변마다 영속, 기록 지우기. paper.id key 리마운트라 안전.
 - **② PWA 오프라인 2차(수동 SW)** — ADR(`docs/decisions.md` 2026-06-26): next-pwa 미도입(외부 의존성 최소 + Serwist/next-pwa는 webpack 필요, 우린 Turbopack). `public/sw.js`(정적 cache-first / 네비 network-first+폴백, /api·/auth·외부 제외, activate 옛 캐시 정리), `ServiceWorkerRegister`(프로덕션만), `next.config.ts` /sw.js no-cache 헤더.
 
-검증: tsc/lint/build 통과, 배포 완료. **오프라인 실동작은 헤드리스 불가 → 기기/DevTools(Application→Service Workers, Network Offline) 수동 점검 필요.**
+검증: tsc/lint/build 통과, 배포 완료. 오프라인 실동작 확인됨(v3에서 RSC/manifest 캐시까지). SW 캐시 버전 현재 v3.
+
+</details>
 
 <details><summary>이전: 커뮤니티 마무리 + 이미지/Q&A/단축키 (2026-06-25)</summary>
 
