@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-**커뮤니티 마무리 + 이미지 업로드 / 논문 Q&A / 피드 키보드 단축키 완성.** tsc·lint·build 통과, 기능별 커밋. **이미지 업로드용 Storage는 `supabase/storage.sql` 실행 필요(아래 다음 액션).**
+**Q&A 답변 캐싱 + PWA 오프라인 2차(수동 SW) 완성.** tsc·lint·build 통과, 기능별 커밋·배포. 오프라인 동작은 기기/DevTools(Offline) 수동 점검만 남음.
 
 ## 이번 주 목표
 
@@ -25,6 +25,15 @@
 
 ## 직전 작업
 
+**Q&A 캐싱 + PWA 오프라인 2차 (2026-06-26).** 우선순위: Q&A 캐싱(퀵윈) > PWA(큰 돌), 댓글 가중치·알림 보류. 커밋 3900614 / ece122f.
+
+- **① Q&A 캐싱** — `lib/storage.ts` `getQA`/`saveQA`+`QAEntry`(요약 캐시와 동일 패턴). PaperQA lazy init 시드(재방문 즉시), 답변마다 영속, 기록 지우기. paper.id key 리마운트라 안전.
+- **② PWA 오프라인 2차(수동 SW)** — ADR(`docs/decisions.md` 2026-06-26): next-pwa 미도입(외부 의존성 최소 + Serwist/next-pwa는 webpack 필요, 우린 Turbopack). `public/sw.js`(정적 cache-first / 네비 network-first+폴백, /api·/auth·외부 제외, activate 옛 캐시 정리), `ServiceWorkerRegister`(프로덕션만), `next.config.ts` /sw.js no-cache 헤더.
+
+검증: tsc/lint/build 통과, 배포 완료. **오프라인 실동작은 헤드리스 불가 → 기기/DevTools(Application→Service Workers, Network Offline) 수동 점검 필요.**
+
+<details><summary>이전: 커뮤니티 마무리 + 이미지/Q&A/단축키 (2026-06-25)</summary>
+
 **커뮤니티 마무리 + 이미지/Q&A/단축키 (2026-06-25).** 우선순위: 이미지>Q&A>단축키, PWA 오프라인은 보류(ADR/의존성 선행). 기능별 커밋(c8b5016 이미지 / 48eec71 Q&A / 8238367 단축키, 앞서 9ee742c 마무리).
 
 - **커뮤니티 마무리** — 피드 카드 💬댓글수, 최신순/🔥인기순(좋아요) 토글, "내 글"(본인 프로필), 태그 빈상태.
@@ -32,7 +41,9 @@
 - **② 논문 Q&A** — `lib/gemini.ts`에 `generateWithRetry` 추출+`answerQuestion`, `app/api/qa/route.ts`(fulltext→abstract 폴백), `components/PaperQA.tsx`(상세 Q&A 섹션, 세션 히스토리). 환각 가드.
 - **③ 키보드 단축키** — `lib/useFeedKeyboard.ts`(j/k 이동·Enter/o 열기, 입력 포커스 시 무시), PaperCard `selected` ring, 피드 힌트. (lint: 렌더 중 ref 쓰기 금지 → count를 effect deps로.)
 
-검증: tsc/lint/build 통과. **DB: `supabase/storage.sql` 실행 필요(미실행 시 업로드만 실패, 나머지 정상).** Q&A·단축키는 추가 세팅 불필요.
+검증: tsc/lint/build 통과. **DB: `supabase/storage.sql` 실행 필요(미실행 시 업로드만 실패, 나머지 정상).** Q&A·단축키는 추가 세팅 불필요. (storage.sql 실행·이미지 업로드 실검증 완료)
+
+</details>
 
 <details><summary>이전: Phase 5 커뮤니티 후속 #1~#4 (2026-06-23)</summary>
 
@@ -131,26 +142,25 @@ ADR: `docs/decisions.md` (2026-06-03). `getLaterSet`/`toggleLater` 추가, unrea
 
 ## 다음 액션
 
-### Must — 이미지 업로드 가동을 위한 사용자 액션 (코드만으론 불가)
+### Must
 
-1. **Storage 버킷·정책 생성** — `supabase/storage.sql`을 Supabase **SQL Editor**에 실행(post-images 공개 버킷 + RLS). 미실행 시 글쓰기 "🖼 이미지" 업로드만 실패, 나머지 기능 정상.
-2. 그 후 글쓰기에서 이미지 업로드 → 본문/상세에 렌더 확인.
-
-<details><summary>완료: 커뮤니티 1차/후속 가동 (Supabase 세팅)</summary>
-
-Supabase 프로젝트·스키마·GitHub OAuth·환경변수(로컬+Vercel) + comments/likes 테이블 실행 완료. 로그인→글·댓글·좋아요 프로덕션 검증됨.
-</details>
+- 없음. (커뮤니티·이미지·Q&A·단축키·PWA 1·2차 코드/세팅 모두 완료)
 
 ### Should
 
-1. **PWA 2차 — 오프라인 캐시(서비스워커)** — 마지막 피드/노트를 오프라인에서. next 기본 SW 미포함 → `next-pwa` 도입 또는 수동 SW. 의존성 결정이라 ADR 먼저.
-2. **남은 Phase 4 후보** — 키보드 단축키(작음) / 논문 Q&A(본문 인프라 재활용, 채팅 UI).
+1. **PWA 오프라인 수동 점검** — 배포본 모바일/DevTools(Application→Service Workers 등록 확인, Network=Offline에서 마지막 피드/노트 열람) 동작 확인. 헤드리스 검증 불가라 직접 점검만 남음.
+2. **(보류) 알림 / 인기순 댓글 가중치** — 현 소규모 단계엔 효용 대비 비용 미스매치라 보류.
+
+<details><summary>완료: 커뮤니티/이미지 가동 (Supabase 세팅)</summary>
+
+Supabase 프로젝트·스키마·OAuth·환경변수 + comments/likes 테이블 + Storage(post-images) 모두 실행. 로그인→글·댓글·좋아요·이미지 업로드 프로덕션 검증됨.
+</details>
 
 ### Could
 
 3. **`.next/cache` 사이즈 모니터링** — arXiv 응답이 누적되며 폴더가 커지는지 점검
 4. **노트 태그 후속** — 상세 페이지 노트 에디터에도 태그 칩 미리보기? (지금은 notes 페이지에만 노출)
-5. **배포본 PWA 설치 확인** — Vercel(https)에서 실제 모바일 "홈 화면에 추가" 동작 점검
+5. **Q&A 캐시 메타·인기순 댓글 가중치** 등 소소한 다듬기
 
 ## 막힌 부분
 

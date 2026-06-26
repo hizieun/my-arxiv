@@ -209,16 +209,16 @@ HuggingFace daily/search 어댑터, 통합 검색 페이지
 - ✅ 피드 점진적 로딩 + sessionStorage 캐시
 - ✅ 노트 태그 (`#RAG`, `#LongContext` 본문 인라인 파싱 + 필터)
 - ⬜ 키보드 단축키 (`j/k`, `r`, `n`, `Cmd+K`)
-- 🔶 PWA — 1차 설치 가능(manifest + 코드 생성 아이콘 + standalone) ✅ / 오프라인 캐시(서비스워커) 2차 ⬜
+- ✅ PWA — 1차 설치 가능(manifest + 코드 생성 아이콘 + standalone) / 2차 오프라인 캐시(수동 서비스워커)
 
 ### Phase 5 — 커뮤니티 ✅
 학습 글(TIL) 공유 — Supabase(Postgres+Auth+RLS), GitHub OAuth, 글 CRUD + 태그, 마크다운 렌더.
 후속 완료: 💬 댓글 / ♥ 좋아요·인기순 / 👤 프로필(`/u/[username]`) / 논문→글쓰기 / 🖼 이미지 업로드.
 
-### Phase 6 — AI·UX 강화 ✅(일부)
-- ✅ 논문 Q&A (본문/abstract 기반 자유 질문, Gemini)
+### Phase 6 — AI·UX 강화 ✅
+- ✅ 논문 Q&A (본문/abstract 기반 자유 질문, Gemini, 답변 localStorage 캐싱)
 - ✅ 피드 키보드 단축키 (j/k, Enter)
-- ⬜ PWA 오프라인 2차 (서비스워커) — 의존성 결정(ADR) 선행, 보류 중
+- ✅ PWA 오프라인 2차 — 수동 경량 서비스워커(`public/sw.js`, next-pwa 미도입). 정적 cache-first / 페이지 network-first+폴백. ADR: `docs/decisions.md`
 
 ### Phase 7+ — 후보
 - 키워드 기반 매일 아침 자동 큐레이션 (에이전트)
