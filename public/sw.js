@@ -5,7 +5,7 @@
 //  - /auth/*, 외부(arXiv·HF·Supabase·Gemini), 비-GET: 패스스루(캐시 안 함)
 // 캐시 무효화: CACHE_VERSION 을 올리면 activate에서 옛 캐시를 정리한다.
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `my-arxiv-static-${CACHE_VERSION}`;
 const PAGE_CACHE = `my-arxiv-pages-${CACHE_VERSION}`;
 const API_CACHE = `my-arxiv-api-${CACHE_VERSION}`;
@@ -33,6 +33,7 @@ function isStaticAsset(url) {
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/icon") ||
     url.pathname.startsWith("/apple-icon") ||
+    url.pathname === "/manifest.webmanifest" ||
     /\.(?:css|js|woff2?|png|jpg|jpeg|gif|webp|svg|ico)$/.test(url.pathname)
   );
 }
@@ -80,6 +81,13 @@ self.addEventListener("fetch", (event) => {
   // GET API: network-first (+오프라인 시 마지막 응답 캐시 폴백)
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(networkFirst(req, API_CACHE));
+    return;
+  }
+
+  // Next.js RSC prefetch/네비게이션 요청(?_rsc 또는 RSC 헤더): network-first 캐시
+  // → 온라인에서 본 페이지를 오프라인에서도 열 수 있고, prefetch 실패 노이즈도 감소
+  if (url.searchParams.has("_rsc") || req.headers.get("RSC") === "1") {
+    event.respondWith(networkFirst(req, PAGE_CACHE));
     return;
   }
 
