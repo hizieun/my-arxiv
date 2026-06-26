@@ -10,6 +10,7 @@ const KEYS = {
   notes: "my-arxiv:notes",
   meta: "my-arxiv:meta",
   summaries: "my-arxiv:summaries",
+  qa: "my-arxiv:qa",
 } as const;
 
 function safeGet<T>(key: string, fallback: T): T {
@@ -144,6 +145,24 @@ export function saveSummary(paperId: string, text: string, mode?: SummaryMode): 
   const summaries = getSummaries();
   summaries[paperId] = { text, generatedAt: new Date().toISOString(), mode };
   safeSet(KEYS.summaries, summaries);
+}
+
+// 논문 Q&A 히스토리 (논문별). 요약과 동일하게 localStorage에 영속.
+export interface QAEntry {
+  q: string;
+  a: string;
+  mode: SummaryMode;
+}
+type QAMap = Record<string, QAEntry[]>;
+
+export function getQA(paperId: string): QAEntry[] {
+  return safeGet<QAMap>(KEYS.qa, {})[paperId] ?? [];
+}
+
+export function saveQA(paperId: string, items: QAEntry[]): void {
+  const all = safeGet<QAMap>(KEYS.qa, {});
+  all[paperId] = items;
+  safeSet(KEYS.qa, all);
 }
 
 interface FeedCacheEntry {

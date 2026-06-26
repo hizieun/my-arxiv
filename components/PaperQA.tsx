@@ -1,12 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-interface QAItem {
-  q: string;
-  a: string;
-  mode: "fulltext" | "abstract";
-}
+import { getQA, saveQA, type QAEntry } from "@/lib/storage";
 
 interface Props {
   paperId: string;
@@ -14,10 +9,11 @@ interface Props {
   abstract: string;
 }
 
-// 논문 본문/abstract 근거로 자유 질문. 세션 단위 히스토리(새로고침 시 초기화).
+// 논문 본문/abstract 근거로 자유 질문. 히스토리는 localStorage에 영속(요약 캐시와 동일).
 export function PaperQA({ paperId, title, abstract }: Props) {
   const [question, setQuestion] = useState("");
-  const [history, setHistory] = useState<QAItem[]>([]);
+  // 같은 논문 재방문 시 저장된 Q&A를 즉시 표시 (lazy initializer로 시드)
+  const [history, setHistory] = useState<QAEntry[]>(() => getQA(paperId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +31,9 @@ export function PaperQA({ paperId, title, abstract }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "답변 생성 실패");
-      setHistory((h) => [...h, { q, a: data.answer, mode: data.mode }]);
+      const next = [...history, { q, a: data.answer, mode: data.mode }];
+      setHistory(next);
+      saveQA(paperId, next);
       setQuestion("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "답변 생성에 실패했습니다.");
@@ -44,11 +42,27 @@ export function PaperQA({ paperId, title, abstract }: Props) {
     }
   }
 
+  function clearHistory() {
+    setHistory([]);
+    saveQA(paperId, []);
+  }
+
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-        논문 Q&amp;A
-      </h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+          논문 Q&amp;A
+        </h2>
+        {history.length > 0 && (
+          <button
+            type="button"
+            onClick={clearHistory}
+            className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+          >
+            기록 지우기
+          </button>
+        )}
+      </div>
 
       {history.length > 0 && (
         <ul className="mb-4 space-y-4">
