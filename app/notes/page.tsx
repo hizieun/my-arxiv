@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useHydrated, useLaterSet, useMeta, useNotes, useReadSet } from "@/lib/storage";
 import { aggregateTags, extractTags, noteHasTag } from "@/lib/tags";
+import { timeAgo, absoluteTime } from "@/lib/time";
 
 type Tab = "notes" | "later" | "read" | "all";
 
@@ -225,8 +226,8 @@ export default function NotesPage() {
                 </div>
               )}
               {note && (
-                <p className="mt-2 text-xs text-[var(--muted)]">
-                  {new Date(note.updatedAt).toLocaleString("ko-KR")}
+                <p className="mt-2 text-xs text-[var(--muted)]" title={absoluteTime(note.updatedAt)}>
+                  {timeAgo(note.updatedAt)}
                 </p>
               )}
             </li>

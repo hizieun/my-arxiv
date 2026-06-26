@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Markdown } from "@/components/Markdown";
+import { SubmitButton } from "@/components/SubmitButton";
 import { createClient } from "@/lib/supabase/client";
 
 interface PostFormProps {
@@ -161,12 +162,12 @@ export function PostForm({ action, initial, submitLabel }: PostFormProps) {
         />
       </div>
 
-      <button
-        type="submit"
-        className="rounded-lg bg-[var(--accent)] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-90"
+      <SubmitButton
+        pendingLabel="저장 중…"
+        className="rounded-lg bg-[var(--accent)] px-5 py-2.5 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {submitLabel}
-      </button>
+      </SubmitButton>
     </form>
   );
 }

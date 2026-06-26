@@ -4,20 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { Markdown } from "@/components/Markdown";
 import { CommentSection } from "@/components/CommentSection";
 import { LikeButton } from "@/components/LikeButton";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { timeAgo, absoluteTime } from "@/lib/time";
 import { deletePost } from "../actions";
 import type { PostWithAuthor, CommentWithAuthor } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default async function PostDetailPage({
   params,
@@ -73,7 +65,7 @@ export default async function PostDetailPage({
           @{post.author?.username ?? "알 수 없음"}
         </Link>
         <span>·</span>
-        <span>{formatDate(post.created_at)}</span>
+        <span title={absoluteTime(post.created_at)}>{timeAgo(post.created_at)}</span>
         {post.updated_at !== post.created_at && <span>(수정됨)</span>}
       </div>
 
@@ -101,12 +93,13 @@ export default async function PostDetailPage({
           </Link>
           <form action={deletePost}>
             <input type="hidden" name="id" value={post.id} />
-            <button
-              type="submit"
-              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-rose-600 hover:border-rose-400"
+            <ConfirmButton
+              message="이 글을 삭제할까요? 되돌릴 수 없습니다."
+              pendingChildren="삭제 중…"
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-rose-600 transition-colors hover:border-rose-400 disabled:opacity-50"
             >
               🗑 삭제
-            </button>
+            </ConfirmButton>
           </form>
         </div>
       )}

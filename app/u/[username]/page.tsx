@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LikeButton } from "@/components/LikeButton";
+import { timeAgo, absoluteTime } from "@/lib/time";
 import type { Post, Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -100,7 +101,7 @@ export default async function ProfilePage({
                 <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">{excerpt(post.body)}</p>
               </Link>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-                <span>{formatDate(post.created_at)}</span>
+                <span title={absoluteTime(post.created_at)}>{timeAgo(post.created_at)}</span>
                 {post.tags.map((t) => (
                   <Link
                     key={t}

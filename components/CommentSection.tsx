@@ -1,15 +1,9 @@
 import Link from "next/link";
 import { addComment, deleteComment } from "@/app/community/actions";
+import { SubmitButton } from "@/components/SubmitButton";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { timeAgo, absoluteTime } from "@/lib/time";
 import type { CommentWithAuthor } from "@/lib/types";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 interface Props {
   postId: string;
@@ -35,12 +29,12 @@ export function CommentSection({ postId, comments, currentUserId }: Props) {
             className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
           />
           <div className="mt-2 flex justify-end">
-            <button
-              type="submit"
-              className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            <SubmitButton
+              pendingLabel="작성 중…"
+              className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               댓글 작성
-            </button>
+            </SubmitButton>
           </div>
         </form>
       ) : (
@@ -66,15 +60,19 @@ export function CommentSection({ postId, comments, currentUserId }: Props) {
                   >
                     @{c.author?.username ?? "알 수 없음"}
                   </Link>
-                  <span className="ml-2">{formatDate(c.created_at)}</span>
+                  <span className="ml-2" title={absoluteTime(c.created_at)}>{timeAgo(c.created_at)}</span>
                 </span>
                 {currentUserId === c.author_id && (
                   <form action={deleteComment}>
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="post_id" value={postId} />
-                    <button type="submit" className="text-rose-600 hover:underline">
+                    <ConfirmButton
+                      message="이 댓글을 삭제할까요?"
+                      pendingChildren="삭제 중…"
+                      className="text-rose-600 hover:underline disabled:opacity-50"
+                    >
                       삭제
-                    </button>
+                    </ConfirmButton>
                   </form>
                 )}
               </div>

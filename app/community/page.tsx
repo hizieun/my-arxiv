@@ -1,17 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { LikeButton } from "@/components/LikeButton";
+import { timeAgo, absoluteTime } from "@/lib/time";
 import type { PostWithAuthor } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function excerpt(markdown: string, len = 140): string {
   const plain = markdown
@@ -173,7 +166,7 @@ export default async function CommunityPage({
                   @{post.author?.username ?? "알 수 없음"}
                 </Link>
                 <span>·</span>
-                <span>{formatDate(post.created_at)}</span>
+                <span title={absoluteTime(post.created_at)}>{timeAgo(post.created_at)}</span>
                 {post.tags.map((t) => (
                   <Link
                     key={t}
