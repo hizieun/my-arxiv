@@ -4,7 +4,7 @@
 
 ## 한 줄
 
-**UX/UI 정제 라운드 완료** (NavBar 반응형·삭제 확인·제출 pending·상대 시각). 직전: Q&A 캐싱 + PWA 오프라인 2차. tsc·lint·build 통과, 배포.
+**UX/UI 정제 P1~P3 완료** (NavBar 반응형·삭제 확인·제출 pending·상대 시각 + 포커스 링·옵티미스틱 좋아요·칩 통일). tsc·lint·build 통과, 배포.
 
 ## 이번 주 목표
 
@@ -31,7 +31,7 @@
 - **삭제 확인** — `ConfirmButton`(client): 글/댓글 삭제 전 `window.confirm`.
 - **제출 pending** — `SubmitButton`/`ConfirmButton`이 `useFormStatus`로 제출 중 비활성+문구(중복 제출 방지). 글쓰기·수정·댓글·삭제 적용.
 - **상대 시각** — `lib/time.ts` `timeAgo`/`absoluteTime`. 커뮤니티 목록·상세·프로필·노트·댓글에 "N일 전"(title=절대시각).
-- 보류(P3): focus-visible 링, 좋아요 옵티미스틱, 칩 스타일 통일.
+- **P3 (`52af39d`)**: focus-visible 포커스 링(globals.css, 키보드 a11y) / LikeButton client+`useOptimistic`(클릭 즉시 반영) / 검색 소스 칩 active를 공통 soft 스타일로 통일.
 
 검증: tsc/lint/build 통과.
 
