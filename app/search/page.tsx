@@ -90,7 +90,7 @@ export default function SearchPage() {
             className={[
               "rounded-full border px-3 py-1 font-medium transition-colors",
               source === s.code
-                ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                 : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]",
             ].join(" ")}
           >
